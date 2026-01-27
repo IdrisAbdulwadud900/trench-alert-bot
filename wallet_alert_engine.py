@@ -72,9 +72,11 @@ def detect_wallet_buys(wallet: str, coin: Dict, min_usd: float = 300) -> Optiona
             
             # If USD not available from parser, try to calculate
             if usd_value is None and amount > 0:
-                price = get_token_price_usd(mint)
-                if price and price > 0:
-                    usd_value = amount * price
+                price_data = get_token_price_usd(mint)
+                if price_data:
+                    price = price_data.get("price", 0)
+                    if price > 0:
+                        usd_value = amount * price
             
             # Check minimum buy size
             if usd_value is None or usd_value < min_usd:

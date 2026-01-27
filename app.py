@@ -85,11 +85,11 @@ from settings import (
     set_alert_mode,
     get_chat_settings
 )
+from plans import set_user_plan
 
 # Helper for locked features
 async def send_locked_message(chat_id, feature, context=None):
     """Send professional locked feature message."""
-    from settings import get_chat_settings
     chat = get_chat_settings(chat_id)
     user_id = chat_id  # For private chats, chat_id == user_id
     
@@ -1010,7 +1010,6 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif choice == "home_wallets":
         # Check if user has wallet alert access
-        from settings import get_chat_settings
         chat = get_chat_settings(user_id)
         if not can_wallet_alerts(chat, user_id):
             msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
@@ -1056,7 +1055,6 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         coins = get_user_coins(user_id)
         wallets = get_wallets(user_id)
         user_lists = get_lists(user_id)
-        from settings import get_chat_settings
         chat = get_chat_settings(user_id)
         plan = get_plan(chat, user_id)
         alert_mode = get_alert_mode(user_id)
@@ -1139,7 +1137,6 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if choice == "alert_loud":
             # Check if user can use loud alerts (Basic/Pro feature)
-            from settings import get_chat_settings
             chat = get_chat_settings(user_id)
             if not can_loud_alerts(chat, user_id):
                 msg = get_upgrade_prompt(user_id, "Loud Alerts")
@@ -1196,7 +1193,6 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif choice == "action_wallets":
         # Check if user has wallet alert access
-        from settings import get_chat_settings
         chat = get_chat_settings(user_id)
         if not can_wallet_alerts(chat, user_id):
             msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
@@ -1358,7 +1354,6 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif choice == "wallet_add":
         # Check if user has wallet alert access
-        from settings import get_chat_settings
         chat = get_chat_settings(user_id)
         if not can_wallet_alerts(chat, user_id):
             msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
@@ -1529,7 +1524,6 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif choice == "alert_wallet":
         # Check if user has wallet alert access (Basic/Pro only)
-        from settings import get_chat_settings
         chat = get_chat_settings(user_id)
         if not can_wallet_alerts(chat, user_id):
             await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
@@ -1644,6 +1638,10 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             (isinstance(user_data, dict) and len(user_data.get("coins", [])) == 0) or
             (isinstance(user_data, list) and len(user_data) == 0)
         )
+        
+        # Enable wallet alerts if configured
+        if "wallets" in state["alerts"] and state["alerts"]["wallets"].get("addresses"):
+            state["alerts"]["wallets"]["enabled"] = True
         
         # save coin
         add_coin(user_id, {
@@ -1897,7 +1895,6 @@ async def monitor_loop(app):
                             
                             if bounce_detected and not triggered.get("bounce"):
                                 msg = format_smart_alert(coin, mc, bounce_type, user_mode)
-                                from settings import get_chat_settings
                                 chat = get_chat_settings(user_id)
                                 disable_notification = not can_loud_alerts(chat, user_id)
                                 await bot.send_message(
@@ -1911,7 +1908,6 @@ async def monitor_loop(app):
                             if "mc" in alerts and not triggered.get("mc"):
                                 if mc <= alerts["mc"]:
                                     msg = format_smart_alert(coin, mc, "mc_break", user_mode)
-                                    from settings import get_chat_settings
                                     chat = get_chat_settings(user_id)
                                     disable_notification = not can_loud_alerts(chat, user_id)
                                     await bot.send_message(
@@ -1937,7 +1933,6 @@ async def monitor_loop(app):
                                         f"Position: {get_range_description(range_pos)}\n"
                                         f"MC: ${int(mc):,}"
                                     )
-                                    from settings import get_chat_settings
                                     chat = get_chat_settings(user_id)
                                     disable_notification = not can_loud_alerts(chat, user_id)
                                     await bot.send_message(
@@ -1951,7 +1946,6 @@ async def monitor_loop(app):
                             if "x" in alerts and not triggered.get("x"):
                                 multiple = mc / start
                                 if multiple >= alerts["x"]:
-                                    from settings import get_chat_settings
                                     chat = get_chat_settings(user_id)
                                     disable_notification = not can_loud_alerts(chat, user_id)
                                     await bot.send_message(
@@ -1970,7 +1964,6 @@ async def monitor_loop(app):
                             if alerts.get("reclaim") and not triggered.get("reclaim"):
                                 reclaim_level = coin["ath_mc"] * 0.95
                                 if mc >= reclaim_level:
-                                    from settings import get_chat_settings
                                     chat = get_chat_settings(user_id)
                                     disable_notification = not can_loud_alerts(chat, user_id)
                                     await bot.send_message(
@@ -2043,7 +2036,6 @@ async def monitor_loop(app):
                                                     },
                                                     symbol
                                                 )
-                                                from settings import get_chat_settings
                                                 chat = get_chat_settings(user_id)
                                                 disable_notification = not can_loud_alerts(chat, user_id)
                                                 await bot.send_message(
@@ -2056,6 +2048,11 @@ async def monitor_loop(app):
                                         except Exception as wallet_err:
                                             print(f"Error checking wallet {wallet[:8]}: {wallet_err}")
                                             continue
+                                
+                                # Save updated wallet state to prevent duplicate alerts
+                                if isinstance(user_data, dict):
+                                    raw_data[user_id] = user_data
+                                    save_data(raw_data)
                     
                     except Exception as e:
                         print(f"Wallet buy detection error: {e}")
