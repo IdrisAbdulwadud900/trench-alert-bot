@@ -36,7 +36,11 @@ async def start_monitor(bot: Bot):
             # Monitor meta alerts for lists
             for user_id_str, user_lists in lists_data.items():
                 try:
-                    user_id_int = int(user_id_str)
+                    # Skip non-numeric user IDs (test/verification users)
+                    try:
+                        user_id_int = int(user_id_str)
+                    except (ValueError, TypeError):
+                        continue
                     
                     # Build coin_data dict from user's tracked coins
                     user_data = data.get(user_id_str, {})
