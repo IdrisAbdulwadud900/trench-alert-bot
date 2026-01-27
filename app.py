@@ -1882,7 +1882,8 @@ def main():
     
     monitor_thread.start()
 
-    app.run_polling()
+    # Drop any pending updates from previous runs to avoid getUpdates conflicts
+    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
