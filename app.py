@@ -965,7 +965,9 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_coins = get_user_coins(user_id)
         max_coins = get_max_coins(user_id)
         if len(user_coins) >= max_coins:
-            await query.message.reply_text(get_upgrade_prompt(user_id, "max_coins"))
+            msg = get_upgrade_prompt(user_id, "max_coins")
+            if msg:  # Owner gets empty string, skip sending
+                await query.message.reply_text(msg)
             return
         user_state[user_id] = {}
         await query.message.reply_text("Send token contract address:")
@@ -976,17 +978,23 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from settings import get_chat_settings
         chat = get_chat_settings(user_id)
         if not can_wallet_alerts(chat, user_id):
-            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
+            msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
+            if msg:
+                await query.message.reply_text(msg)
             return
         
         # Check wallet limits
         wallets = get_wallets(user_id)
         max_wallets = get_max_wallets(user_id)
         if max_wallets == 0:
-            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
+            msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
+            if msg:
+                await query.message.reply_text(msg)
             return
         if len(wallets) >= max_wallets:
-            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
+            msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
+            if msg:
+                await query.message.reply_text(msg)
             return
         
         if not wallets:
@@ -1099,7 +1107,9 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             from settings import get_chat_settings
             chat = get_chat_settings(user_id)
             if not can_loud_alerts(chat, user_id):
-                await query.message.reply_text(get_upgrade_prompt(user_id, "Loud Alerts"))
+                msg = get_upgrade_prompt(user_id, "Loud Alerts")
+                if msg:
+                    await query.message.reply_text(msg)
                 return
             
             set_alert_mode(chat_id, "loud")
@@ -1140,7 +1150,9 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_coins = get_user_coins(user_id)
         max_coins = get_max_coins(user_id)
         if len(user_coins) >= max_coins:
-            await query.message.reply_text(get_upgrade_prompt(user_id, "max_coins"))
+            msg = get_upgrade_prompt(user_id, "max_coins")
+            if msg:
+                await query.message.reply_text(msg)
             return
         
         user_state[user_id] = {}
@@ -1152,7 +1164,9 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from settings import get_chat_settings
         chat = get_chat_settings(user_id)
         if not can_wallet_alerts(chat, user_id):
-            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
+            msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
+            if msg:
+                await query.message.reply_text(msg)
             return
         
         wallets = get_wallets(user_id)
@@ -1503,14 +1517,18 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from settings import get_chat_settings
         chat = get_chat_settings(user_id)
         if not can_wallet_alerts(chat, user_id):
-            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
+            msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
+            if msg:
+                await query.message.reply_text(msg)
             return
         
         # Check tier limits
         wallets = get_wallets(user_id)
         max_wallets = get_max_wallets(user_id)
         if max_wallets == 0 or len(wallets) >= max_wallets:
-            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
+            msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
+            if msg:
+                await query.message.reply_text(msg)
             return
         
         user_state[user_id] = {"step": "wallet_address"}
@@ -1593,7 +1611,9 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_lists = get_lists(user_id)
         max_lists = get_max_lists(user_id)
         if len(user_lists) >= max_lists:
-            await query.message.reply_text(get_upgrade_prompt(user_id, "max_lists"))
+            msg = get_upgrade_prompt(user_id, "max_lists")
+            if msg:
+                await query.message.reply_text(msg)
             return
         
         user_state[user_id] = {"step": "list_name"}
