@@ -88,6 +88,25 @@ if not BOT_TOKEN:
 user_state = {}
 
 # -------------------------
+# Helper functions
+# -------------------------
+
+async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Check if user is admin in the group."""
+    try:
+        chat = update.effective_chat
+        user = update.effective_user
+        
+        if chat.type not in ["group", "supergroup"]:
+            return True  # Private chats always allow
+        
+        member = await chat.get_member(user.id)
+        return member.status in ["creator", "administrator"]
+    except Exception as e:
+        print(f"Admin check error: {e}")
+        return False
+
+# -------------------------
 # Telegram commands
 # -------------------------
 
@@ -1517,8 +1536,8 @@ def monitor_loop_sync(bot_arg):
 
                                 # SAVE TRIGGERED STATE BACK TO COIN
                                 coin["triggered"] = triggered
-
-                                await asyncio.sleep(2)
+                                
+                                time.sleep(2)  # Use time.sleep in sync context
 
                             except Exception as e:
                                 print(f"Coin error: {e}")
