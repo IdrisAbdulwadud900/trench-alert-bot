@@ -25,7 +25,13 @@ from ui.coins import (
     handle_remove_coin,
     confirm_remove_coin
 )
-from ui.wallets import show_wallets_menu, show_wallet_list
+from ui.wallets import (
+    show_wallets_menu,
+    show_wallet_list,
+    start_add_wallet,
+    handle_remove_wallet,
+    confirm_remove_wallet
+)
 from ui.settings import show_settings_menu, show_alert_mode_setting
 from core.monitor import start_monitor
 
@@ -161,6 +167,22 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_wallet_list(update, context)
         return
     
+    if choice == "wallet_add":
+        await query.answer()
+        await start_add_wallet(update, context)
+        return
+    
+    if choice == "wallet_remove":
+        await query.answer()
+        await handle_remove_wallet(update, context)
+        return
+    
+    if choice.startswith("remove_wallet_"):
+        await query.answer()
+        wallet_index = int(choice.split("_")[-1])
+        await confirm_remove_wallet(update, context, wallet_index)
+        return
+    
     # Settings
     if choice == "setting_alert_mode":
         await query.answer()
@@ -235,6 +257,53 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         state["step"] = "configuring_alerts"
         
         await show_configure_alerts(update, context, ca, mc)
+        return
+    
+    # Add wallet flow - step 1: get address
+    if step == "awaiting_wallet_address":
+        address = text
+        
+        # Basic Solana address validation (32-44 chars, base58)
+        if len(address) < 32 or len(address) > 44:
+            await update.message.reply_text(
+                "❌ Invalid Solana address.\n\n"
+                "Please send a valid wallet address."
+            )
+            return
+        
+        # Store address and ask for label
+        state["wallet_address"] = address
+        state["step"] = "awaiting_wallet_label"
+        
+        await update.message.reply_text(
+            "✅ Address received\n\n"
+            "Send a label/name for this wallet\n"
+            "(or type 'skip' to leave unnamed):"
+        )
+        return
+    
+    # Add wallet flow - step 2: get label
+    if step == "awaiting_wallet_label":
+        label = text if text.lower() != "skip" else "Unnamed Wallet"
+        address = state.get("wallet_address")
+        
+        if address:
+            from core.tracker import Tracker
+            
+            if Tracker.add_wallet(user_id, address, label):
+                # Clear state
+                context.bot_data["user_states"].pop(user_id, None)
+                
+                await update.message.reply_text(
+                    f"✅ Wallet Added\n\n"
+                    f"Label: {label}\n"
+                    f"Address: {address[:10]}...{address[-8:]}"
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ Wallet already tracked or error occurred."
+                )
+                context.bot_data["user_states"].pop(user_id, None)
         return
     
     # Alert configuration inputs

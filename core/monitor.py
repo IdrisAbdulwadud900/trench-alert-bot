@@ -8,11 +8,12 @@ import asyncio
 from telegram import Bot
 from config import CHECK_INTERVAL
 from storage import load_data, save_data
+from wallets import load_wallets
 from mc import get_market_cap
 from intelligence import update_coin_history
 from core.alerts import AlertEngine
 from settings import get_chat_settings
-from plans import can_loud_alerts
+from plans import can_loud_alerts, can_wallet_alerts
 
 
 async def start_monitor(bot: Bot):
@@ -22,7 +23,9 @@ async def start_monitor(bot: Bot):
     while True:
         try:
             data = load_data()
+            wallets_data = load_wallets()
             
+            # Monitor coins
             for user_id, user_data in data.items():
                 try:
                     # Handle both data formats
@@ -83,6 +86,69 @@ async def start_monitor(bot: Bot):
                     
                 except Exception as e:
                     print(f"User error: {e}")
+                    continue
+            
+            # Monitor wallets for buys
+            for user_id, wallets in wallets_data.items():
+                try:
+                    chat = get_chat_settings(user_id)
+                    
+                    # Check if user has wallet alert permission
+                    if not can_wallet_alerts(chat, int(user_id)):
+                        continue
+                    
+                    for wallet in wallets:
+                        try:
+                            address = wallet.get("address")
+                            if not address:
+                                continue
+                            
+                            # Check for new buys (using existing wallet_alert_engine)
+                            from wallet_alert_engine import detect_wallet_buys
+                            from onchain import format_wallet_buy_alert
+                            
+                            # Get user's tracked coins for context
+                            user_data = data.get(str(user_id), {})
+                            if isinstance(user_data, dict):
+                                tracked_coins = user_data.get("coins", [])
+                            else:
+                                tracked_coins = user_data if isinstance(user_data, list) else []
+                            
+                            # Check each tracked coin for wallet buys
+                            for coin in tracked_coins:
+                                ca = coin.get("ca")
+                                if not ca:
+                                    continue
+                                
+                                buy_info = detect_wallet_buys(address, coin, min_usd=100)
+                                
+                                if buy_info:
+                                    alert_msg = format_wallet_buy_alert(
+                                        {
+                                            "type": "wallet_buy",
+                                            "wallet": address,
+                                            "amount_usd": buy_info.get("amount_usd", 0),
+                                            "signature": buy_info.get("signature", "")
+                                        },
+                                        coin_symbol=ca[:8]
+                                    )
+                                    
+                                    disable_notification = not can_loud_alerts(chat, user_id)
+                                    
+                                    await bot.send_message(
+                                        chat_id=user_id,
+                                        text=alert_msg,
+                                        disable_notification=disable_notification
+                                    )
+                                
+                                await asyncio.sleep(0.5)  # Throttle
+                        
+                        except Exception as e:
+                            print(f"Wallet monitoring error: {e}")
+                            continue
+                
+                except Exception as e:
+                    print(f"User wallet error: {e}")
                     continue
             
             save_data(data)
