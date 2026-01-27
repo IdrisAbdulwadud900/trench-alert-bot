@@ -1409,11 +1409,12 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Monitoring loop (runs in separate thread)
 # -------------------------
 
-def monitor_loop_sync(bot: Bot):
+def monitor_loop_sync(bot_arg):
     """Synchronous monitor loop that runs in a separate thread."""
     import time
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+        bot = Bot(token=BOT_TOKEN)
     print("📡 Monitor loop started in background thread")
     
     async def monitor():
@@ -1833,6 +1834,9 @@ async def monitor_loop(app):
 # ========================
 # APP ENTRY & SETUP
 # ========================
+
+# Create monitor thread
+monitor_thread = threading.Thread(target=monitor_loop_sync, args=(None,), daemon=True)
 
 def main():
     print("🚀 Trench Alert Bot running...")
