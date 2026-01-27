@@ -1962,11 +1962,14 @@ async def monitor_loop(app):
                                 if movers and should_send_meta_alert(list_name):
                                     # Send meta alert
                                     alert_msg = format_meta_alert(list_name, movers)
-                                    mode = get_alert_mode(user_id)
+                                    
+                                    # Check loud alerts permission (plan-aware)
+                                    disable_notification = not can_loud_alerts(chat, user_id)
+                                    
                                     await bot.send_message(
                                         chat_id=user_id,
                                         text=alert_msg,
-                                        disable_notification=(mode == "silent")
+                                        disable_notification=disable_notification
                                     )
                                     mark_meta_alert_sent(list_name)
                                     await asyncio.sleep(1)

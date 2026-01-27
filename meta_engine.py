@@ -106,15 +106,15 @@ def format_meta_alert(list_name: str, movers: List[Tuple[str, str, float]]) -> s
     Returns:
         Formatted alert message
     """
-    # Take top 3-5 movers
-    top_movers = movers[:5]
+    # Take top 6 movers for display
+    top_movers = movers[:6]
     
     msg = f"🔥 META HEATING UP — {list_name}\n\n"
     
     msg += f"{len(movers)} coins moving together:\n"
     
     for symbol, ca, pct_1h in top_movers:
-        msg += f"• {symbol} {pct_1h:+.0f}%\n"
+        msg += f"• {symbol} +{int(pct_1h)}%\n"
     
     msg += "\nNarrative rotation likely."
     
