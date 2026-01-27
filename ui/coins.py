@@ -87,13 +87,18 @@ async def show_coin_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += "\n"
     
     keyboard = [
+        [InlineKeyboardButton("🔍 Search", callback_data="coin_search")],
         [InlineKeyboardButton("✏️ Edit Alerts", callback_data="coin_edit_alerts")],
+        [InlineKeyboardButton("⏸️ Pause All", callback_data="coin_pause_all"),
+         InlineKeyboardButton("▶️ Resume All", callback_data="coin_resume_all")],
+        [InlineKeyboardButton("🗑️ Delete All", callback_data="coin_delete_all")],
         [InlineKeyboardButton("◀ Back", callback_data="menu_coins")]
     ]
     
     await query.message.reply_text(
         text,
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
     )
 
 

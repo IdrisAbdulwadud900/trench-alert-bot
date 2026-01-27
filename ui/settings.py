@@ -19,6 +19,10 @@ async def show_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     plan = get_plan(chat, user_id)
     alert_mode = get_alert_mode(user_id)
     
+    # Check if admin
+    from ui.admin import is_admin
+    is_admin_user = await is_admin(user_id)
+    
     plan_names = {
         "free": "FREE",
         "basic": "BASIC ($10/mo)",
@@ -33,10 +37,16 @@ async def show_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     
     keyboard = [
-        [InlineKeyboardButton("🔔 Alert Mode", callback_data="setting_alert_mode")],
-        [InlineKeyboardButton("💳 View Plans", callback_data="setting_plans")],
-        [InlineKeyboardButton("◀ Back", callback_data="home")]
+        [InlineKeyboardButton("🔔 Notification Settings", callback_data="notif_settings")],
+        [InlineKeyboardButton("🔊 Alert Mode", callback_data="setting_alert_mode")],
+        [InlineKeyboardButton("💳 View Plans", callback_data="setting_plans")]
     ]
+    
+    # Add admin button if admin
+    if is_admin_user:
+        keyboard.append([InlineKeyboardButton("🔧 Admin Dashboard", callback_data="admin_dashboard")])
+    
+    keyboard.append([InlineKeyboardButton("◀ Back", callback_data="home")])
     
     await query.message.reply_text(
         text,

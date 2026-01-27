@@ -1,8 +1,10 @@
 import requests
 import time
+from rate_limiter import with_rate_limit
 
 MAX_RETRIES = 3
 
+@with_rate_limit("dexscreener")
 def get_token_price_usd(ca):
     """Fetch token price with retry logic and timeout protection."""
     url = f"https://api.dexscreener.com/latest/dex/tokens/{ca}"

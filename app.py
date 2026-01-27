@@ -46,7 +46,11 @@ from ui.lists import (
 )
 from ui.dashboard import show_dashboard
 from ui.history import show_alert_history, clear_history_confirm, clear_history_confirmed
+from ui.search import start_coin_search, handle_coin_search, pause_all_coins, resume_all_coins, delete_all_coins_confirm, delete_all_coins_confirmed
+from ui.notifications import show_notification_settings, toggle_notification
+from ui.admin import show_admin_dashboard, show_admin_users, admin_clear_cache, show_admin_stats
 from core.monitor import start_monitor
+from webhook_config import should_use_webhook, get_webhook_config, setup_webhook
 
 
 # Validate BOT_TOKEN
@@ -316,6 +320,65 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await clear_history_confirmed(update, context)
         return
     
+    # Search & Bulk Operations
+    if choice == "coin_search":
+        await query.answer()
+        await start_coin_search(update, context)
+        return
+    
+    if choice == "coin_pause_all":
+        await query.answer()
+        await pause_all_coins(update, context)
+        return
+    
+    if choice == "coin_resume_all":
+        await query.answer()
+        await resume_all_coins(update, context)
+        return
+    
+    if choice == "coin_delete_all":
+        await query.answer()
+        await delete_all_coins_confirm(update, context)
+        return
+    
+    if choice == "coin_delete_all_confirmed":
+        await query.answer()
+        await delete_all_coins_confirmed(update, context)
+        return
+    
+    # Notification Settings
+    if choice == "notif_settings":
+        await query.answer()
+        await show_notification_settings(update, context)
+        return
+    
+    if choice.startswith("notif_toggle_"):
+        await query.answer()
+        alert_type = choice.replace("notif_toggle_", "")
+        await toggle_notification(update, context, alert_type)
+        return
+    
+    # Admin Dashboard
+    if choice == "admin_dashboard":
+        await query.answer()
+        await show_admin_dashboard(update, context)
+        return
+    
+    if choice == "admin_users":
+        await query.answer()
+        await show_admin_users(update, context)
+        return
+    
+    if choice == "admin_clear_cache":
+        await query.answer()
+        await admin_clear_cache(update, context)
+        return
+    
+    if choice == "admin_stats":
+        await query.answer()
+        await show_admin_stats(update, context)
+        return
+    
     # Lists
     if choice == "menu_lists" or choice == "list_view":
         await query.answer()
@@ -401,6 +464,16 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     step = state.get("step")
     configuring = state.get("configuring")
+    
+    # Coin search flow
+    if step == "searching_coin":
+        from ui.search import handle_coin_search
+        
+        await handle_coin_search(update, context, text, user_id)
+        
+        # Clear state
+        del context.bot_data["user_states"][user_id]
+        return
     
     # Edit alert flow
     if step == "editing_alert":
@@ -616,14 +689,32 @@ def main():
     
     print("✅ All handlers registered")
     print("=" * 50)
-    print("🟢 Bot starting...\n")
     
-    # Run
-    app.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,
-        close_loop=False
-    )
+    # Check if webhook mode
+    webhook_config = get_webhook_config()
+    
+    if webhook_config:
+        print(f"🌐 Starting in WEBHOOK mode")
+        print(f"   URL: {webhook_config['webhook_url']}")
+        print(f"   Port: {webhook_config['port']}")
+        print("=" * 50)
+        
+        setup_webhook(
+            app,
+            webhook_config["webhook_url"],
+            webhook_config["port"]
+        )
+    else:
+        print("🔄 Starting in POLLING mode")
+        print("=" * 50)
+        print("🟢 Bot starting...\n")
+        
+        # Run polling
+        app.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True,
+            close_loop=False
+        )
 
 
 if __name__ == "__main__":
