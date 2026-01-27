@@ -7,11 +7,20 @@ Monetization = permissions, NOT new features.
 
 Tiers:
 - Free: Basic coin tracking, silent alerts only
-- Pro: Wallet alerts, lists/meta, loud alerts  
-- Group Pro: Group wallet alerts, meta alerts, priority delivery
+- Basic ($10/month): Wallet alerts (limited), loud alerts
+- Pro ($50/month): Everything - wallets, lists, meta, groups
+- Owner: Full access, no limits (YOU)
 """
 
 from settings import get_chat_settings
+
+# 👑 OWNER IDS - Full access, no limits, no checks
+OWNER_IDS = [7483359361]  # Add your Telegram user ID here
+
+
+def is_owner(user_id):
+    """Check if user is owner (bypasses all gates)."""
+    return int(user_id) in OWNER_IDS
 
 
 def get_user_plan(user_id):
@@ -19,8 +28,11 @@ def get_user_plan(user_id):
     Get user's subscription plan.
     
     Returns:
-        "free", "pro", or "group_pro"
+        "owner", "free", "basic", or "pro"
     """
+    if is_owner(user_id):
+        return "owner"
+    
     settings = get_chat_settings(user_id)
     return settings.get("plan", "free")
 
@@ -29,54 +41,68 @@ def can_use_wallet_alerts(user_id, is_group=False):
     """
     Check if user/group can use wallet buy alerts.
     
-    Free tier: NO wallet alerts
-    Pro tier: YES (private only)
-    Group Pro: YES (groups)
+    Free: NO
+    Basic: YES (private only)
+    Pro: YES (private + groups)
+    Owner: YES (always)
     """
+    if is_owner(user_id):
+        return True
+    
     plan = get_user_plan(user_id)
     
-    if is_group:
-        return plan == "group_pro"
+    if plan == "pro":
+        return True
     
-    return plan in ["pro", "group_pro"]
+    if plan == "basic" and not is_group:
+        return True
+    
+    return False
 
 
 def can_use_meta_alerts(user_id, is_group=False):
     """
     Check if user/group can use meta/list alerts.
     
-    Free tier: NO
-    Pro tier: YES (private)
-    Group Pro: YES (groups)
+    Free: NO
+    Basic: NO
+    Pro: YES
+    Owner: YES (always)
     """
+    if is_owner(user_id):
+        return True
+    
     plan = get_user_plan(user_id)
-    
-    if is_group:
-        return plan == "group_pro"
-    
-    return plan in ["pro", "group_pro"]
+    return plan == "pro"
 
 
 def can_use_loud_alerts(user_id):
     """
     Check if user can use loud (sound) alerts.
     
-    Free tier: Silent only
-    Pro tier: YES
-    Group Pro: YES
+    Free: NO (silent only)
+    Basic: YES
+    Pro: YES
+    Owner: YES (always)
     """
+    if is_owner(user_id):
+        return True
+    
     plan = get_user_plan(user_id)
-    return plan in ["pro", "group_pro"]
+    return plan in ["basic", "pro"]
 
 
 def get_max_coins(user_id):
     """Get maximum number of coins user can track."""
+    if is_owner(user_id):
+        return 999999  # Unlimited
+    
     plan = get_user_plan(user_id)
     
     limits = {
         "free": 3,
-        "pro": 50,
-        "group_pro": 100
+        "basic": 20,
+        "pro": 100
     }
     
     return limits.get(plan, 3)
@@ -84,12 +110,15 @@ def get_max_coins(user_id):
 
 def get_max_wallets(user_id):
     """Get maximum number of wallets user can watch."""
+    if is_owner(user_id):
+        return 999999  # Unlimited
+    
     plan = get_user_plan(user_id)
     
     limits = {
-        "free": 0,  # No wallet alerts on free
-        "pro": 10,
-        "group_pro": 25
+        "free": 0,
+        "basic": 5,
+        "pro": 25
     }
     
     return limits.get(plan, 0)
@@ -97,12 +126,15 @@ def get_max_wallets(user_id):
 
 def get_max_lists(user_id):
     """Get maximum number of lists user can create."""
+    if is_owner(user_id):
+        return 999999  # Unlimited
+    
     plan = get_user_plan(user_id)
     
     limits = {
-        "free": 0,  # No lists on free
-        "pro": 5,
-        "group_pro": 10
+        "free": 0,
+        "basic": 0,
+        "pro": 10
     }
     
     return limits.get(plan, 0)
@@ -119,57 +151,59 @@ def get_upgrade_prompt(user_id, feature):
     Returns:
         Professional upgrade message
     """
+    if is_owner(user_id):
+        return ""  # Owner never sees upgrade prompts
+    
     plan = get_user_plan(user_id)
     
     messages = {
         "wallet_alerts": (
-            "🔒 Pro Feature\n\n"
+            "🔒 Premium Feature\n\n"
             "Wallet buy alerts track smart money on-chain.\n\n"
-            "Upgrade to Pro to unlock:\n"
-            "• Real-time wallet tracking\n"
-            "• Custom buy size filters\n"
-            "• Up to 10 wallets\n\n"
-            "Your plan: FREE"
+            "Available on:\n"
+            "• Basic ($10/mo) - Private chats only\n"
+            "• Pro ($50/mo) - Private + Groups\n\n"
+            f"Your plan: {plan.upper()}"
         ),
         "meta_alerts": (
             "🔒 Pro Feature\n\n"
             "Meta alerts detect narrative rotation.\n\n"
-            "Upgrade to Pro to unlock:\n"
-            "• List-wide analysis\n"
-            "• Multi-coin pumps\n"
-            "• Sector heating signals\n\n"
-            "Your plan: FREE"
+            "Available on:\n"
+            "• Pro ($50/mo) - Multi-coin analysis\n\n"
+            f"Your plan: {plan.upper()}"
         ),
         "loud_alerts": (
-            "🔒 Pro Feature\n\n"
+            "🔒 Premium Feature\n\n"
             "Loud alerts ensure you never miss a move.\n\n"
-            "Upgrade to Pro to unlock:\n"
-            "• Sound notifications\n"
-            "• Priority delivery\n"
-            "• Real-time pings\n\n"
-            "Your plan: FREE"
+            "Available on:\n"
+            "• Basic ($10/mo)\n"
+            "• Pro ($50/mo)\n\n"
+            f"Your plan: {plan.upper()}"
         ),
         "max_coins": (
             f"🔒 Coin Limit Reached\n\n"
-            f"Free plan: 3 coins\n"
-            f"Pro plan: 50 coins\n\n"
-            f"Upgrade to track more."
+            f"Free: 3 coins\n"
+            f"Basic: 20 coins\n"
+            f"Pro: 100 coins\n\n"
+            f"Your plan: {plan.upper()}"
         ),
         "max_wallets": (
             f"🔒 Wallet Limit Reached\n\n"
-            f"Free plan: 0 wallets\n"
-            f"Pro plan: 10 wallets\n\n"
-            f"Upgrade to track wallets."
+            f"Free: 0 wallets\n"
+            f"Basic: 5 wallets\n"
+            f"Pro: 25 wallets\n\n"
+            f"Your plan: {plan.upper()}"
         ),
         "max_lists": (
             f"🔒 List Limit Reached\n\n"
-            f"Free plan: 0 lists\n"
-            f"Pro plan: 5 lists\n\n"
-            f"Upgrade to create lists."
+            f"Free: 0 lists\n"
+            f"Basic: 0 lists\n"
+            f"Pro: 10 lists\n\n"
+            f"Your plan: {plan.upper()}"
         )
     }
     
-    return messages.get(feature, "🔒 Pro Feature\n\nUpgrade to unlock.")
+    return messages.get(feature, "🔒 Premium Feature\n\nUpgrade to unlock.")
 
 
 def check_permission(user_id, feature, is_group=False):
@@ -214,11 +248,11 @@ def set_user_plan(user_id, plan):
     
     Args:
         user_id: User ID
-        plan: "free", "pro", or "group_pro"
+        plan: "free", "basic", "pro", or "owner"
     """
     from settings import set_chat_setting
     
-    if plan not in ["free", "pro", "group_pro"]:
+    if plan not in ["free", "basic", "pro", "owner"]:
         raise ValueError(f"Invalid plan: {plan}")
     
     set_chat_setting(user_id, "plan", plan)

@@ -53,17 +53,23 @@ from intelligence import (
     should_suppress_alert,
     get_range_description
 )
-from permissions import (
-    get_user_plan,
-    can_use_wallet_alerts,
-    can_use_meta_alerts,
-    can_use_loud_alerts,
+from plans import (
+    get_plan,
+    is_owner,
+    can_wallet_alerts,
+    can_meta_alerts,
+    can_loud_alerts,
     get_max_coins,
     get_max_wallets,
     get_max_lists,
     get_upgrade_prompt,
-    check_permission,
     set_user_plan
+)
+from meta_engine import (
+    detect_meta_movement,
+    should_send_meta_alert,
+    mark_meta_alert_sent,
+    format_meta_alert
 )
 from meta import (
     analyze_list_performance,
@@ -84,8 +90,13 @@ from settings import (
 # Helper for locked features
 async def send_locked_message(chat_id, feature, context=None):
     """Send professional locked feature message."""
-    allowed, msg = check_permission(chat_id, feature)
-    if not allowed:
+    from settings import get_chat_settings
+    chat = get_chat_settings(chat_id)
+    user_id = chat_id  # For private chats, chat_id == user_id
+    
+    msg = get_upgrade_prompt(user_id, feature)
+    
+    if msg:  # Only send if not owner (owner gets empty string)
         if context:
             await context.bot.send_message(chat_id=chat_id, text=msg)
         else:
@@ -95,7 +106,8 @@ async def send_locked_message(chat_id, feature, context=None):
             import asyncio
             loop = asyncio.get_event_loop()
             await loop.create_task(bot.send_message(chat_id=chat_id, text=msg))
-    return allowed
+    
+    return not bool(msg)  # Return True if owner (no msg), False otherwise
 
 # Validate BOT_TOKEN
 if not BOT_TOKEN:
@@ -163,7 +175,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # PRIVATE MODE (unchanged)
         keyboard = [
             [InlineKeyboardButton("➕ Track Coin", callback_data="home_track_coin")],
-            [InlineKeyboardButton("👀 Watch Wallets", callback_data="home_wallets")],
+            [InlineKeyboardButton("👀 Wallet Alerts", callback_data="home_wallets")],
             [InlineKeyboardButton("📂 Lists / Meta", callback_data="home_lists")],
             [InlineKeyboardButton("📊 Dashboard", callback_data="home_dashboard")],
             [InlineKeyboardButton("🔔 Alert Mode", callback_data="alert_mode")],
@@ -172,9 +184,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(
             "🚨 Trench Alert Bot\n\n"
-            "Track coins. Track wallets.\n"
-            "Get smart alerts.\n\n"
-            "What do you want to do?",
+            "Smart alerts for coins, wallets & narratives.\n\n"
+            "Choose an action:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -340,7 +351,9 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def pricing_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show pricing and subscription tiers."""
     user_id = update.effective_user.id
-    plan = get_user_plan(user_id)
+    from settings import get_chat_settings
+    chat = get_chat_settings(user_id)
+    plan = get_plan(chat, user_id)
     
     msg = (
         "💎 Trench Alert Bot — Plans\n"
@@ -350,16 +363,16 @@ async def pricing_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• 3 coins\n"
         "• MC/% alerts\n"
         "• Silent alerts only\n\n"
-        "💎 PRO\n"
-        "• 50 coins\n"
-        "• Wallet buy alerts (10 wallets)\n"
-        "• Lists/Meta alerts (5 lists)\n"
+        "� BASIC — $10/month\n"
+        "• 20 coins\n"
+        "• Wallet buy alerts (5 wallets)\n"
         "• Loud alerts\n\n"
-        "👥 GROUP PRO\n"
+        "💎 PRO — $50/month\n"
         "• 100 coins\n"
-        "• Group wallet alerts (25 wallets)\n"
-        "• Group meta alerts (10 lists)\n"
-        "• Priority delivery"
+        "• Wallet buy alerts (25 wallets)\n"
+        "• Lists/Meta alerts (10 lists)\n"
+        "• Loud alerts\n"
+        "• Group features"
     )
     await update.message.reply_text(msg)
 
@@ -390,17 +403,14 @@ async def upgrade_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin command to manually upgrade users (for testing)."""
     user_id = update.effective_user.id
     
-    # Simple admin check - you can add your user ID here
-    ADMIN_IDS = [user_id]  # Add your Telegram user ID here for testing
-    
-    if user_id not in ADMIN_IDS:
-        await update.message.reply_text("⛔ Admin only")
+    if not is_owner(user_id):
+        await update.message.reply_text("⛔ Owner only")
         return
     
     if not context.args or len(context.args) < 2:
         await update.message.reply_text(
             "Usage: /upgrade <user_id> <plan>\n\n"
-            "Plans: free, pro, group_pro\n\n"
+            "Plans: free, basic, pro\n\n"
             "Example: /upgrade 123456789 pro"
         )
         return
@@ -408,8 +418,8 @@ async def upgrade_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_user_id = context.args[0]
     plan = context.args[1].lower()
     
-    if plan not in ["free", "pro", "group_pro"]:
-        await update.message.reply_text("Invalid plan. Use: free, pro, or group_pro")
+    if plan not in ["free", "basic", "pro"]:
+        await update.message.reply_text("Invalid plan. Use: free, basic, or pro")
         return
     
     try:
@@ -1009,16 +1019,28 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         coins = get_user_coins(user_id)
         wallets = get_wallets(user_id)
         user_lists = get_lists(user_id)
-        plan = get_user_plan(user_id)
+        from settings import get_chat_settings
+        chat = get_chat_settings(user_id)
+        plan = get_plan(chat, user_id)
+        
+        # Plan display with pricing
+        plan_display = {
+            "free": "FREE",
+            "basic": "BASIC ($10/mo)",
+            "pro": "PRO ($50/mo)",
+            "owner": "OWNER"
+        }.get(plan, plan.upper())
+        
+        wallet_status = "ON" if len(wallets) > 0 else "OFF"
         
         msg = (
-            f"📊 Dashboard\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Plan: {plan.upper()}\n\n"
-            f"📈 Tracking: {len(coins)} coins\n"
-            f"👀 Wallets: {len(wallets)}\n"
-            f"📂 Lists: {len(user_lists)}\n\n"
-            f"Use /pricing to see tier limits."
+            f"📊 Your Dashboard\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Tracked coins: {len(coins)}\n"
+            f"Wallet alerts: {wallet_status}\n"
+            f"Lists: {len(user_lists)}\n"
+            f"Plan: {plan_display}\n\n"
+            f"Use buttons to manage alerts."
         )
         keyboard = [[InlineKeyboardButton("◀ Back", callback_data="home_back")]]
         await query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -1075,9 +1097,11 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = query.from_user.id
         
         if choice == "alert_loud":
-            # Check if user can use loud alerts (Pro feature)
-            if not can_use_loud_alerts(user_id):
-                await query.message.reply_text(get_upgrade_prompt(user_id, "loud_alerts"))
+            # Check if user can use loud alerts (Basic/Pro feature)
+            from settings import get_chat_settings
+            chat = get_chat_settings(user_id)
+            if not can_loud_alerts(chat, user_id):
+                await query.message.reply_text(get_upgrade_prompt(user_id, "Loud Alerts"))
                 return
             
             set_alert_mode(chat_id, "loud")
@@ -1098,7 +1122,7 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Go back to home screen
         keyboard = [
             [InlineKeyboardButton("➕ Track Coin", callback_data="home_track_coin")],
-            [InlineKeyboardButton("👀 Watch Wallets", callback_data="home_wallets")],
+            [InlineKeyboardButton("👀 Wallet Alerts", callback_data="home_wallets")],
             [InlineKeyboardButton("📂 Lists / Meta", callback_data="home_lists")],
             [InlineKeyboardButton("📊 Dashboard", callback_data="home_dashboard")],
             [InlineKeyboardButton("🔔 Alert Mode", callback_data="alert_mode")],
@@ -1106,9 +1130,8 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await query.message.reply_text(
             "🚨 Trench Alert Bot\n\n"
-            "Track coins. Track wallets.\n"
-            "Get smart alerts.\n\n"
-            "What do you want to do?",
+            "Smart alerts for coins, wallets & narratives.\n\n"
+            "Choose an action:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
@@ -1128,8 +1151,10 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif choice == "action_wallets":
         # Check if user has wallet alert access
-        if not can_use_wallet_alerts(user_id):
-            await query.message.reply_text(get_upgrade_prompt(user_id, "wallet_alerts"))
+        from settings import get_chat_settings
+        chat = get_chat_settings(user_id)
+        if not can_wallet_alerts(chat, user_id):
+            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
             return
         
         wallets = get_wallets(user_id)
@@ -1302,9 +1327,11 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif choice == "alert_wallet":
-        # Check if user has wallet alert access (Pro/Premium only)
-        if not can_use_wallet_alerts(user_id):
-            await query.message.reply_text(get_upgrade_prompt(user_id, "wallet_alerts"))
+        # Check if user has wallet alert access (Basic/Pro only)
+        from settings import get_chat_settings
+        chat = get_chat_settings(user_id)
+        if not can_wallet_alerts(chat, user_id):
+            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
             return
         
         # Initialize wallet alerts with defaults
@@ -1864,7 +1891,9 @@ async def monitor_loop(app):
                     # WALLET BUY DETECTION (Phase 6)
                     # ======================
                     try:
-                        if can_use_wallet_alerts(user_id):
+                        from settings import get_chat_settings
+                        chat = get_chat_settings(user_id)
+                        if can_wallet_alerts(chat, user_id):
                             user_wallets = get_wallets(user_id)
                             if user_wallets:
                                 # Check each tracked coin for wallet buys
@@ -1922,47 +1951,34 @@ async def monitor_loop(app):
                         print(f"Wallet buy detection error: {e}")
                     
                     # ======================
-                    # META ANALYSIS (Phase 7)
+                    # META ANALYSIS (Phase 7 - Meta Engine v1)
                     # ======================
                     try:
-                        if can_use_meta_alerts(user_id):
+                        from settings import get_chat_settings
+                        chat = get_chat_settings(user_id)
+                        if can_meta_alerts(chat, user_id):
                             user_lists = get_lists(user_id)
+                            all_coins_data = load_data()  # Get all users' coins for detection
                             
-                            # Build coin data dict for meta analysis
-                            coin_data = {}
-                            for coin in coins:
-                                if isinstance(coin, dict) and coin.get("ca"):
-                                    coin_data[coin["ca"]] = {
-                                        "mc": coin.get("history", {}).get("mc", [])[-1] if coin.get("history", {}).get("mc") else coin.get("start_mc", 0),
-                                        "volume_24h": coin.get("history", {}).get("volume_24h", [])[-1] if coin.get("history", {}).get("volume_24h") else 0,
-                                        "start_mc": coin.get("start_mc", 0),
-                                        "symbol": coin.get("symbol", ""),
-                                    }
-                            
-                            # Check each list for heating
+                            # Check each list for meta movement
                             for list_name, list_coins in user_lists.items():
                                 if not list_coins:
                                     continue
                                 
-                                # Analyze list performance
-                                metrics = analyze_list_performance(list_coins, coin_data)
+                                # Detect if 3+ coins pumping 20%+ in this list
+                                movers = detect_meta_movement(list_name, list_coins, all_coins_data)
                                 
-                                # Check if list is heating up
-                                is_heating, reason = detect_list_heating(list_name, metrics, threshold=40)
-                                
-                                if is_heating:
-                                    # Check if we already alerted (simple cooldown)
-                                    list_state_key = f"list_alert_{list_name}"
-                                    if not triggered.get(list_state_key):
-                                        alert_msg = format_list_alert(list_name, metrics, reason)
-                                        mode = get_alert_mode(user_id)
-                                        await bot.send_message(
-                                            chat_id=user_id,
-                                            text=alert_msg,
-                                            disable_notification=(mode == "silent")
-                                        )
-                                        triggered[list_state_key] = True
-                                        await asyncio.sleep(1)
+                                if movers and should_send_meta_alert(list_name):
+                                    # Send meta alert
+                                    alert_msg = format_meta_alert(list_name, movers)
+                                    mode = get_alert_mode(user_id)
+                                    await bot.send_message(
+                                        chat_id=user_id,
+                                        text=alert_msg,
+                                        disable_notification=(mode == "silent")
+                                    )
+                                    mark_meta_alert_sent(list_name)
+                                    await asyncio.sleep(1)
                     
                     except Exception as e:
                         print(f"Meta analysis error: {e}")
@@ -2076,6 +2092,16 @@ def main():
     print("🚀 Trench Alert Bot running...")
     
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    # Register bot commands (visible when user types /)
+    async def post_init(application):
+        await application.bot.set_my_commands([
+            ("start", "Open bot menu"),
+            ("help", "How to use the bot"),
+            ("status", "View tracked coins")
+        ])
+    
+    app.post_init = post_init
 
     # Commands (work in both private and groups)
     app.add_handler(CommandHandler("start", start))
