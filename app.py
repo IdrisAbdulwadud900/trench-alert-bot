@@ -1790,11 +1790,13 @@ async def monitor_loop(app):
                             
                             if bounce_detected and not triggered.get("bounce"):
                                 msg = format_smart_alert(coin, mc, bounce_type, user_mode)
-                                mode = get_alert_mode(user_id)
+                                from settings import get_chat_settings
+                                chat = get_chat_settings(user_id)
+                                disable_notification = not can_loud_alerts(chat, user_id)
                                 await bot.send_message(
                                     chat_id=user_id,
                                     text=msg,
-                                    disable_notification=(mode == "silent")
+                                    disable_notification=disable_notification
                                 )
                                 triggered["bounce"] = True
 
@@ -1802,11 +1804,13 @@ async def monitor_loop(app):
                             if "mc" in alerts and not triggered.get("mc"):
                                 if mc <= alerts["mc"]:
                                     msg = format_smart_alert(coin, mc, "mc_break", user_mode)
-                                    mode = get_alert_mode(user_id)
+                                    from settings import get_chat_settings
+                                    chat = get_chat_settings(user_id)
+                                    disable_notification = not can_loud_alerts(chat, user_id)
                                     await bot.send_message(
                                         chat_id=user_id,
                                         text=msg,
-                                        disable_notification=(mode == "silent")
+                                        disable_notification=disable_notification
                                     )
                                     triggered["mc"] = True
 
@@ -1826,11 +1830,13 @@ async def monitor_loop(app):
                                         f"Position: {get_range_description(range_pos)}\n"
                                         f"MC: ${int(mc):,}"
                                     )
-                                    mode = get_alert_mode(user_id)
+                                    from settings import get_chat_settings
+                                    chat = get_chat_settings(user_id)
+                                    disable_notification = not can_loud_alerts(chat, user_id)
                                     await bot.send_message(
                                         chat_id=user_id,
                                         text=msg,
-                                        disable_notification=(mode == "silent")
+                                        disable_notification=disable_notification
                                     )
                                     triggered["pct"] = True
 
@@ -1838,7 +1844,9 @@ async def monitor_loop(app):
                             if "x" in alerts and not triggered.get("x"):
                                 multiple = mc / start
                                 if multiple >= alerts["x"]:
-                                    mode = get_alert_mode(user_id)
+                                    from settings import get_chat_settings
+                                    chat = get_chat_settings(user_id)
+                                    disable_notification = not can_loud_alerts(chat, user_id)
                                     await bot.send_message(
                                         chat_id=user_id,
                                         text=(
@@ -1847,7 +1855,7 @@ async def monitor_loop(app):
                                             f"Reached {multiple:.2f}x\n"
                                             f"MC: ${int(mc):,}"
                                         ),
-                                        disable_notification=(mode == "silent")
+                                        disable_notification=disable_notification
                                     )
                                     triggered["x"] = True
 
@@ -1855,7 +1863,9 @@ async def monitor_loop(app):
                             if alerts.get("reclaim") and not triggered.get("reclaim"):
                                 reclaim_level = coin["ath_mc"] * 0.95
                                 if mc >= reclaim_level:
-                                    mode = get_alert_mode(user_id)
+                                    from settings import get_chat_settings
+                                    chat = get_chat_settings(user_id)
+                                    disable_notification = not can_loud_alerts(chat, user_id)
                                     await bot.send_message(
                                         chat_id=user_id,
                                         text=(
@@ -1864,7 +1874,7 @@ async def monitor_loop(app):
                                             f"95% of ATH reached\n"
                                             f"MC: ${int(mc):,}"
                                         ),
-                                        disable_notification=(mode == "silent")
+                                        disable_notification=disable_notification
                                     )
                                     triggered["reclaim"] = True
 
@@ -1926,11 +1936,13 @@ async def monitor_loop(app):
                                                     },
                                                     symbol
                                                 )
-                                                mode = get_alert_mode(user_id)
+                                                from settings import get_chat_settings
+                                                chat = get_chat_settings(user_id)
+                                                disable_notification = not can_loud_alerts(chat, user_id)
                                                 await bot.send_message(
                                                     chat_id=user_id,
                                                     text=alert_msg,
-                                                    disable_notification=(mode == "silent")
+                                                    disable_notification=disable_notification
                                                 )
                                                 await asyncio.sleep(1)
                                         
@@ -2027,11 +2039,17 @@ async def monitor_loop(app):
                                             f"MC hit ${int(alerts['mc']):,}\n"
                                             f"Current: ${int(mc):,}"
                                         )
-                                        mode = get_alert_mode(group_id)
+                                        # Groups use group admin's plan for loud alerts
+                                        from settings import get_chat_settings
+                                        chat = get_chat_settings(group_id)
+                                        # Get group creator/first admin for permission check
+                                        admins = get_group_admins(group_id)
+                                        admin_id = admins[0] if admins else group_id
+                                        disable_notification = not can_loud_alerts(chat, admin_id)
                                         await bot.send_message(
                                             chat_id=group_id,
                                             text=msg,
-                                            disable_notification=(mode == "silent")
+                                            disable_notification=disable_notification
                                         )
                                         triggered["mc"] = True
                                 
@@ -2044,11 +2062,15 @@ async def monitor_loop(app):
                                             f"ATH reclaim underway\n"
                                             f"Current: ${int(mc):,}"
                                         )
-                                        mode = get_alert_mode(group_id)
+                                        from settings import get_chat_settings
+                                        chat = get_chat_settings(group_id)
+                                        admins = get_group_admins(group_id)
+                                        admin_id = admins[0] if admins else group_id
+                                        disable_notification = not can_loud_alerts(chat, admin_id)
                                         await bot.send_message(
                                             chat_id=group_id,
                                             text=msg,
-                                            disable_notification=(mode == "silent")
+                                            disable_notification=disable_notification
                                         )
                                         triggered["reclaim"] = True
                                 
@@ -2079,9 +2101,6 @@ async def monitor_loop(app):
 # APP ENTRY & SETUP
 # ========================
 
-# Create monitor thread
-monitor_thread = threading.Thread(target=monitor_loop_sync, args=(None,), daemon=True)
-
 def main():
     print("🚀 Trench Alert Bot running...")
     
@@ -2094,6 +2113,8 @@ def main():
             ("help", "How to use the bot"),
             ("status", "View tracked coins")
         ])
+        # Start monitor loop as async task
+        asyncio.create_task(monitor_loop(application))
     
     app.post_init = post_init
 
@@ -2112,8 +2133,6 @@ def main():
     app.add_handler(CallbackQueryHandler(alert_choice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    monitor_thread.start()
-
     # Drop any pending updates from previous runs to avoid getUpdates conflicts
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
