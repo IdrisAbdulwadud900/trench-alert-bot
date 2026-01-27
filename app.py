@@ -178,8 +178,11 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if choice.startswith("remove_coin_"):
         await query.answer()
-        coin_index = int(choice.split("_")[-1])
-        await confirm_remove_coin(update, context, coin_index)
+        try:
+            coin_index = int(choice.split("_")[-1])
+            await confirm_remove_coin(update, context, coin_index)
+        except (ValueError, IndexError):
+            await query.message.edit_text("⚠️ Invalid selection")
         return
     
     if choice == "coin_pause":
@@ -189,8 +192,11 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if choice.startswith("toggle_pause_"):
         await query.answer()
-        coin_index = int(choice.split("_")[-1])
-        await toggle_pause_coin(update, context, coin_index)
+        try:
+            coin_index = int(choice.split("_")[-1])
+            await toggle_pause_coin(update, context, coin_index)
+        except (ValueError, IndexError):
+            await query.message.edit_text("⚠️ Invalid selection")
         return
     
     if choice == "coin_edit_alerts":
@@ -200,15 +206,22 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if choice.startswith("edit_alerts_"):
         await query.answer()
-        coin_index = int(choice.split("_")[-1])
-        await show_edit_alert_menu(update, context, coin_index)
+        try:
+            coin_index = int(choice.split("_")[-1])
+            await show_edit_alert_menu(update, context, coin_index)
+        except (ValueError, IndexError):
+            await query.message.edit_text("⚠️ Invalid selection")
         return
     
     if choice.startswith("edit_mc_") or choice.startswith("edit_pct_") or choice.startswith("edit_x_"):
         await query.answer()
-        parts = choice.split("_")
-        alert_type = parts[1]
-        coin_index = int(parts[2])
+        try:
+            parts = choice.split("_")
+            alert_type = parts[1]
+            coin_index = int(parts[2])
+        except (ValueError, IndexError):
+            await query.message.edit_text("⚠️ Invalid selection")
+            return
         
         # Store in user state for message handler
         if "user_states" not in context.bot_data:
@@ -229,7 +242,11 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if choice.startswith("edit_reclaim_"):
         await query.answer()
-        coin_index = int(choice.split("_")[-1])
+        try:
+            coin_index = int(choice.split("_")[-1])
+        except (ValueError, IndexError):
+            await query.message.edit_text("⚠️ Invalid selection")
+            return
         
         from storage import load_data, save_data
         data = load_data()
@@ -294,8 +311,11 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if choice.startswith("remove_wallet_"):
         await query.answer()
-        wallet_index = int(choice.split("_")[-1])
-        await confirm_remove_wallet(update, context, wallet_index)
+        try:
+            wallet_index = int(choice.split("_")[-1])
+            await confirm_remove_wallet(update, context, wallet_index)
+        except (ValueError, IndexError):
+            await query.message.edit_text("⚠️ Invalid selection")
         return
     
     # Dashboard
@@ -392,18 +412,24 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if choice.startswith("list_open_"):
         await query.answer()
-        list_index = int(choice.split("_")[-1])
-        await show_list_detail(update, context, list_index)
+        try:
+            list_index = int(choice.split("_")[-1])
+            await show_list_detail(update, context, list_index)
+        except (ValueError, IndexError):
+            await query.message.edit_text("⚠️ Invalid selection")
         return
     
     if choice.startswith("list_delete_"):
         await query.answer()
-        list_index = int(choice.split("_")[-1])
-        from core.tracker import Tracker
-        if Tracker.delete_list(query.from_user.id, list_index):
-            await query.message.reply_text("✅ List deleted")
-        else:
-            await query.message.reply_text("❌ Error deleting list")
+        try:
+            list_index = int(choice.split("_")[-1])
+            from core.tracker import Tracker
+            if Tracker.delete_list(query.from_user.id, list_index):
+                await query.message.reply_text("✅ List deleted")
+            else:
+                await query.message.reply_text("❌ Error deleting list")
+        except (ValueError, IndexError):
+            await query.message.edit_text("⚠️ Invalid selection")
         return
     
     if choice == "list_meta":

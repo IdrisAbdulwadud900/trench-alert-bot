@@ -135,9 +135,13 @@ async def start_monitor(bot: Bot):
                             
                             # Evaluate time-based alerts
                             start_mc = coin.get("start_mc", 0)
-                            timebased_result = should_alert_timeased(
-                                int(user_id), ca, mc, start_mc
-                            )
+                            try:
+                                user_id_int = int(user_id)
+                                timebased_result = should_alert_timeased(
+                                    user_id_int, ca, mc, start_mc
+                                )
+                            except (ValueError, TypeError):
+                                timebased_result = None
                             if timebased_result:
                                 alerts_to_fire.append((
                                     timebased_result["type"],
@@ -173,7 +177,11 @@ async def start_monitor(bot: Bot):
                                 )
                                 
                                 # Log alert to history
-                                log_alert(int(user_id), alert_type, ca, {"message": message, "mc": mc})
+                                try:
+                                    user_id_int = int(user_id)
+                                    log_alert(user_id_int, alert_type, ca, {"message": message, "mc": mc})
+                                except (ValueError, TypeError):
+                                    pass  # Skip logging for invalid user IDs
                                 
                                 # Mark as triggered
                                 coin.setdefault("triggered", {})

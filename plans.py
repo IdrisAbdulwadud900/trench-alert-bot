@@ -19,7 +19,10 @@ OWNER_IDS = [7483359361]  # Your Telegram user ID
 
 def is_owner(user_id: int) -> bool:
     """Check if user is owner (bypasses all gates)."""
-    return int(user_id) in OWNER_IDS
+    try:
+        return int(user_id) in OWNER_IDS
+    except (ValueError, TypeError):
+        return False
 
 
 def get_plan(chat: dict, user_id: int) -> str:
