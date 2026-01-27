@@ -2187,19 +2187,27 @@ async def monitor_loop(app):
 # ========================
 
 def main():
-    print("🚀 Trench Alert Bot running...")
+    print("🚀 Trench Alert Bot starting...")
+    print("⚠️  Ensuring no other instances are running...")
     
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     # Register bot commands (visible when user types /)
     async def post_init(application):
+        # Clear any existing webhooks (in case bot was using webhook before)
+        await application.bot.delete_webhook(drop_pending_updates=True)
+        print("✅ Webhooks cleared (using polling mode)")
+        
         await application.bot.set_my_commands([
             ("start", "Open bot menu"),
             ("help", "How to use the bot"),
             ("status", "View tracked coins")
         ])
+        print("✅ Bot commands registered")
+        
         # Start monitor loop as async task
         asyncio.create_task(monitor_loop(application))
+        print("✅ Monitor loop started")
     
     app.post_init = post_init
 
@@ -2221,8 +2229,21 @@ def main():
     # DEBUG: Catch-all callback handler (TEMPORARY - catches any unhandled callbacks)
     app.add_handler(CallbackQueryHandler(debug_callback))
     
-    # Drop any pending updates from previous runs to avoid getUpdates conflicts
-    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    # CRITICAL: Drop pending updates to avoid conflicts with other instances
+    # This ensures only THIS instance receives new updates
+    print("⚠️  Dropping pending updates to avoid conflicts...")
+    try:
+        app.run_polling(
+            allowed_updates=Update.ALL_TYPES, 
+            drop_pending_updates=True,
+            close_loop=False  # Don't close event loop (monitor task is running)
+        )
+    except Exception as e:
+        print(f"❌ Bot polling failed: {e}")
+        print("💡 If you see 'Conflict' errors, another bot instance is running!")
+        print("   → Stop all other instances (local or Render)")
+        print("   → Only ONE instance should run at a time")
+        raise
 
 if __name__ == "__main__":
     main()
