@@ -1502,8 +1502,6 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ========================
     
     elif choice == "wallet_add":
-        await query.answer()
-        
         # Check if user has wallet alert access
         from settings import get_chat_settings
         chat = get_chat_settings(user_id)
@@ -1526,8 +1524,6 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     
     elif choice == "wallet_list":
-        await query.answer()
-        
         wallets = get_wallets(user_id)
         
         if not wallets:
@@ -1542,9 +1538,45 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.message.reply_text(msg)
     
-    elif choice == "wallet_back":
-        await query.answer()
+    elif choice == "wallet_remove":
+        wallets = get_wallets(user_id)
         
+        if not wallets:
+            await query.message.reply_text("You don't have any wallets to remove.")
+            return
+        
+        msg = "🗑️ Remove Wallet\n\nSelect a wallet to remove:\n\n"
+        keyboard = []
+        for i, w in enumerate(wallets):
+            label = w.get('label', 'Unnamed Wallet')
+            address_short = f"{w['address'][:8]}...{w['address'][-6:]}"
+            keyboard.append([InlineKeyboardButton(
+                f"{label} ({address_short})",
+                callback_data=f"remove_wallet_{i}"
+            )])
+        keyboard.append([InlineKeyboardButton("◀ Back", callback_data="home_wallets")])
+        
+        await query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    elif choice.startswith("remove_wallet_"):
+        wallet_index = int(choice.split("_")[-1])
+        wallets = get_wallets(user_id)
+        
+        if wallet_index >= len(wallets):
+            await query.message.reply_text("❌ Invalid wallet selection.")
+            return
+        
+        wallet = wallets[wallet_index]
+        success = remove_wallet(user_id, wallet['address'])
+        
+        if success:
+            await query.message.reply_text(
+                f"✅ Removed wallet:\n{wallet.get('label', 'Unnamed')}\n{wallet['address'][:10]}..."
+            )
+        else:
+            await query.message.reply_text("❌ Error removing wallet.")
+    
+    elif choice == "wallet_back":
         await query.message.reply_text(
             "Choose what you want to do:",
             reply_markup=InlineKeyboardMarkup([
