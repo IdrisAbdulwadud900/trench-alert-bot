@@ -975,11 +975,21 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     elif choice == "home_wallets":
+        # Check if user has wallet alert access
+        from settings import get_chat_settings
+        chat = get_chat_settings(user_id)
+        if not can_wallet_alerts(chat, user_id):
+            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
+            return
+        
         # Check wallet limits
         wallets = get_wallets(user_id)
         max_wallets = get_max_wallets(user_id)
-        if len(wallets) >= max_wallets and max_wallets > 0:
-            await query.message.reply_text(get_upgrade_prompt(user_id, "max_wallets"))
+        if max_wallets == 0:
+            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
+            return
+        if len(wallets) >= max_wallets:
+            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
             return
         
         if not wallets:
@@ -1492,11 +1502,18 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ========================
     
     elif choice == "wallet_add":
+        # Check if user has wallet alert access
+        from settings import get_chat_settings
+        chat = get_chat_settings(user_id)
+        if not can_wallet_alerts(chat, user_id):
+            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
+            return
+        
         # Check tier limits
         wallets = get_wallets(user_id)
         max_wallets = get_max_wallets(user_id)
-        if len(wallets) >= max_wallets:
-            await query.message.reply_text(get_upgrade_prompt(user_id, "max_wallets"))
+        if max_wallets == 0 or len(wallets) >= max_wallets:
+            await query.message.reply_text(get_upgrade_prompt(user_id, "Wallet Buy Alerts"))
             return
         
         user_state[user_id] = {"step": "wallet_address"}
