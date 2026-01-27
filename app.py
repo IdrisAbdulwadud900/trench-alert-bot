@@ -1706,19 +1706,34 @@ async def monitor_loop(app):
                                     min_buy = wallet_alert.get("min_buy_usd", 300)
                                     watched_addresses = wallet_alert.get("addresses", [])
                                     
-                                    # Detect wallet buys
-                                    buys = detect_wallet_buys(ca, user_wallets, min_buy)
-                                    
-                                    for buy in buys:
-                                        # Filter to only watched wallets
-                                        if watched_addresses and buy["address"] not in watched_addresses:
-                                            continue
+                                    # Check each watched wallet (V2: Production layer 1-3 engine)
+                                    for wallet in watched_addresses:
+                                        try:
+                                            # Import production engine
+                                            from wallet_alert_engine import detect_wallet_buys as engine_detect
+                                            
+                                            # Use production engine - manages wallet_state internally
+                                            buy = engine_detect(wallet, coin, min_buy)
+                                            
+                                            if buy:
+                                                # Send alert with pro-level UX
+                                                symbol = coin.get("symbol", "Token")
+                                                alert_msg = format_wallet_buy_alert(
+                                                    {
+                                                        "type": "wallet_buy",
+                                                        "wallet": buy["wallet"],
+                                                        "usd": buy["usd"],
+                                                        "price": buy.get("price", 0),
+                                                        "signature": buy["signature"]
+                                                    },
+                                                    symbol
+                                                )
+                                                await bot.send_message(user_id, alert_msg)
+                                                await asyncio.sleep(1)
                                         
-                                        # Send alert
-                                        symbol = coin.get("symbol", "Token")
-                                        alert_msg = format_wallet_buy_alert(buy, symbol)
-                                        await bot.send_message(user_id, alert_msg)
-                                        await asyncio.sleep(1)
+                                        except Exception as wallet_err:
+                                            print(f"Error checking wallet {wallet[:8]}: {wallet_err}")
+                                            continue
                     
                     except Exception as e:
                         print(f"Wallet buy detection error: {e}")

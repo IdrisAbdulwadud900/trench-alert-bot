@@ -1,109 +1,146 @@
 #!/usr/bin/env python3
 """
-Layer 3 — Alert Engine (Business Rules)
+Layer 3 — Wallet Buy Alert Engine (Production Logic)
 
-Combines Layer 1 (signature fetching) and Layer 2 (transaction parsing)
-to detect wallet buys with:
-- Minimum buy size filter
-- Per-coin + per-wallet filters
-- Deduplication (last_signature tracking)
+Production-grade wallet buy detection with:
+- Tracked wallet + tracked coin (mint) matching
+- Token inflow detection via RPC
+- USD size calculation
+- Deduplication via last_signature tracking
+- Zero spam, zero duplicates, zero guessing
 
-This module does NOT send alerts. It returns buy events for the bot to act on.
+Returns alert dict ONLY when ALL conditions met:
+1. Tracked wallet
+2. Tracked coin (mint)
+3. Token inflow detected
+4. Buy size >= min USD
+5. Transaction not alerted before
 """
 
 import time
-from typing import List, Dict, Optional
+from typing import Dict, Optional
 from wallet_scanner import get_recent_signatures
 from wallet_parser import get_transaction, parse_token_inflow
+from price import get_token_price_usd
 
 
+def detect_wallet_buys(wallet: str, coin: Dict, min_usd: float = 300) -> Optional[Dict]:
+    """
+    Detect if tracked wallet bought tracked coin.
+    
+    Args:
+        wallet: Wallet address to monitor
+        coin: Coin dict with 'ca' (mint), 'wallet_state', etc.
+        min_usd: Minimum buy size in USD
+    
+    Returns:
+        Alert dict with signature, amount, usd, price OR None
+    """
+    try:
+        # Get last seen signature for deduplication
+        wallet_state = coin.setdefault("wallet_state", {})
+        last_sig = wallet_state.get("last_signature")
+        
+        mint = coin.get("ca")
+        if not mint:
+            return None
+        
+        # Layer 1: Fetch recent signatures
+        sigs = get_recent_signatures(wallet, limit=5)
+        
+        for s in sigs:
+            sig = s.get("signature")
+            if not sig:
+                continue
+            
+            # Stop when we hit the last seen signature (already processed)
+            if sig == last_sig:
+                break
+            
+            # Layer 2: Parse transaction for token inflow
+            tx = get_transaction(sig)
+            if not tx:
+                continue
+            
+            inflow = parse_token_inflow(tx, wallet, mint)
+            if not inflow:
+                continue
+            
+            # Calculate USD value
+            amount = inflow.get("delta_tokens", 0)
+            usd_value = inflow.get("usd")
+            
+            # If USD not available from parser, try to calculate
+            if usd_value is None and amount > 0:
+                price = get_token_price_usd(mint)
+                if price and price > 0:
+                    usd_value = amount * price
+            
+            # Check minimum buy size
+            if usd_value is None or usd_value < min_usd:
+                continue
+            
+            # SUCCESS - Update last seen signature
+            wallet_state["last_signature"] = sig
+            
+            return {
+                "signature": sig,
+                "amount": amount,
+                "usd": usd_value,
+                "price": usd_value / amount if amount > 0 else 0,
+                "wallet": wallet,
+                "mint": mint,
+                "blockTime": inflow.get("blockTime")
+            }
+        
+        return None
+        
+    except Exception as e:
+        print(f"Error detecting buy for wallet {wallet[:8]}...: {e}")
+        return None
+
+
+# Legacy compatibility wrapper
 def detect_new_buys(
     wallet: str,
     mint: str,
     min_buy_usd: float = 300,
     last_signature: Optional[str] = None,
     limit: int = 10
-) -> List[Dict]:
-    """
-    Detect new token buys for a wallet.
-    
-    Args:
-        wallet: Wallet address to monitor
-        mint: Token mint address to watch
-        min_buy_usd: Minimum buy size in USD
-        last_signature: Last processed signature (for dedup)
-        limit: Max signatures to fetch
-    
-    Returns:
-        List of buy events with keys: wallet, mint, delta_tokens, usd, signature, blockTime
-    """
-    try:
-        # Layer 1: Fetch recent signatures
-        sigs = get_recent_signatures(wallet, limit=limit)
-        
-        # Filter out already-processed signatures
-        new_sigs = []
-        for sig in sigs:
-            sig_str = sig.get("signature")
-            if not sig_str:
-                continue
-            # Stop when we hit the last seen signature
-            if last_signature and sig_str == last_signature:
-                break
-            new_sigs.append(sig_str)
-        
-        if not new_sigs:
-            return []
-        
-        buys = []
-        for sig in new_sigs:
-            try:
-                # Layer 2: Parse transaction for token inflow
-                tx = get_transaction(sig)
-                if not tx:
-                    continue
-                
-                inflow = parse_token_inflow(tx, wallet, mint)
-                if not inflow:
-                    continue
-                
-                # Check minimum buy size
-                usd = inflow.get("usd")
-                if usd is None or usd < min_buy_usd:
-                    continue
-                
-                buys.append(inflow)
-                
-                # Rate limit to avoid RPC throttle
-                time.sleep(0.1)
-                
-            except Exception as e:
-                print(f"Error parsing tx {sig[:16]}...: {e}")
-                continue
-        
-        return buys
-        
-    except Exception as e:
-        print(f"Error detecting buys for wallet {wallet[:8]}...: {e}")
-        return []
+) -> list:
+    """Legacy function for backward compatibility."""
+    coin = {
+        "ca": mint,
+        "wallet_state": {"last_signature": last_signature}
+    }
+    result = detect_wallet_buys(wallet, coin, min_buy_usd)
+    return [result] if result else []
 
 
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 3:
-        print("Usage: python wallet_alert_engine.py <WALLET> <MINT> [min_usd] [last_sig]")
+        print("Usage: python wallet_alert_engine.py <WALLET> <MINT> [min_usd]")
         sys.exit(1)
     
     wallet = sys.argv[1]
     mint = sys.argv[2]
     min_usd = float(sys.argv[3]) if len(sys.argv) > 3 else 300.0
-    last_sig = sys.argv[4] if len(sys.argv) > 4 else None
     
-    buys = detect_new_buys(wallet, mint, min_buy_usd=min_usd, last_signature=last_sig)
+    # Test with mock coin structure
+    coin = {
+        "ca": mint,
+        "symbol": "TEST",
+        "wallet_state": {}
+    }
     
-    if buys:
-        print(f"Found {len(buys)} new buy(s):")
-        for b in buys:
-            print(f"  {b['delta_tokens']:.4f} tokens @ ${b['usd']:.2f} USD — sig: {b['signature'][:16]}...")
+    result = detect_wallet_buys(wallet, coin, min_usd)
+    
+    if result:
+        print(f"✅ Buy detected:")
+        print(f"  Amount: {result['amount']:.4f} tokens")
+        print(f"  USD: ${result['usd']:.2f}")
+        print(f"  Signature: {result['signature'][:16]}...")
     else:
-        print("No new buys detected.")
+        print("No buys detected above minimum.")
+

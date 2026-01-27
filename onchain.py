@@ -69,7 +69,7 @@ def detect_wallet_buys(
     
     Returns list of detected buys with wallet info.
     """
-    from wallet_alert_engine import detect_new_buys
+    from wallet_alert_engine import detect_wallet_buys as engine_detect
     
     detected_buys = []
     
@@ -77,27 +77,27 @@ def detect_wallet_buys(
     if tracked_wallets:
         for wallet in tracked_wallets:
             try:
-                # Get last signature from wallet state (passed in via coin data)
-                # For now, we'll fetch without dedup to show latest activity
-                buys = detect_new_buys(
-                    wallet=wallet,
-                    mint=token_ca,
-                    min_buy_usd=min_buy_usd,
-                    last_signature=None,  # Bot will manage this via wallet_state
-                    limit=5
-                )
+                # Create coin dict structure expected by engine
+                coin = {
+                    "ca": token_ca,
+                    "wallet_state": {}  # Engine will manage last_signature
+                }
                 
-                for buy in buys:
+                # Use production engine
+                buy = engine_detect(wallet, coin, min_buy_usd)
+                
+                if buy:
                     detected_buys.append({
                         "type": "wallet_buy",
                         "wallet": buy["wallet"],
                         "mint": buy["mint"],
-                        "delta_tokens": buy["delta_tokens"],
+                        "delta_tokens": buy["amount"],
                         "usd": buy["usd"],
                         "signature": buy["signature"],
                         "blockTime": buy.get("blockTime"),
                         "address": buy["wallet"],  # for compatibility
-                        "tx_id": buy["signature"]
+                        "tx_id": buy["signature"],
+                        "price": buy.get("price", 0)
                     })
                     
                 time.sleep(0.2)  # Rate limit between wallets
@@ -137,24 +137,28 @@ def detect_wallet_buys(
     return detected_buys
 
 def format_wallet_buy_alert(buy_info: Dict, coin_symbol: str = "Token") -> str:
-    """Format a wallet buy alert message."""
+    """Format a wallet buy alert message with pro-level UX."""
 
     buy_type = buy_info.get("type", "unknown")
     
     if buy_type == "wallet_buy":
-        # V2: True wallet-level detection
+        # V2: True wallet-level detection - production UX
         wallet = buy_info.get("wallet", "unknown")
-        wallet_disp = f"{wallet[:7]}...{wallet[-4:]}" if len(wallet) > 20 else wallet
-        size_usd = buy_info.get("usd", 0)
-        delta_tokens = buy_info.get("delta_tokens", 0)
+        wallet_short = wallet[:6] + "..." if len(wallet) > 6 else wallet
+        usd = buy_info.get("usd", 0)
+        price = buy_info.get("price", 0)
+        signature = buy_info.get("signature", "")
+        
+        # Build Solscan link
+        tx_link = f"https://solscan.io/tx/{signature}" if signature else "N/A"
         
         return (
             f"🟢 WALLET BUY DETECTED\n\n"
-            f"Token: ${coin_symbol}\n"
-            f"Wallet: {wallet_disp}\n"
-            f"Buy Size: ${size_usd:,.2f}\n"
-            f"Tokens: {delta_tokens:,.4f}\n"
-            f"Tracked by: Wallet Alert"
+            f"🪙 Token: {coin_symbol}\n"
+            f"👛 Wallet: {wallet_short}\n"
+            f"💰 Buy Size: ${int(usd):,}\n"
+            f"📊 Price: ${price}\n"
+            f"🔗 Tx: {tx_link}"
         )
     
     elif buy_type == "volume_spike":
