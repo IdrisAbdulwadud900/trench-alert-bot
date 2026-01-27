@@ -1414,7 +1414,7 @@ def monitor_loop_sync(bot_arg):
     import time
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-        bot = Bot(token=BOT_TOKEN)
+    bot = Bot(token=BOT_TOKEN)
     print("📡 Monitor loop started in background thread")
     
     async def monitor():
