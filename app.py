@@ -20,7 +20,6 @@ from storage import (
     load_data,
     get_user_profile,
     get_all_coins,
-    get_user_wallets,
     get_user_lists
 )
 from wallets import (
@@ -475,7 +474,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # WALLET TRACKING INPUT
     # ========================
     if step == "wallet_address":
-        from storage import add_wallet
         # Validate address format (Solana addresses are 32-44 chars, base58)
         text = text.strip()
         
@@ -499,7 +497,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     elif step == "wallet_label":
-        from storage import add_wallet
         text = text.strip()
         
         # Validate label length
@@ -511,7 +508,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         wallet_addr = state.get("wallet_address")
         
         if add_wallet(user_id, wallet_addr, label):
-            label = label or f"Wallet {len(get_user_wallets(user_id))}"
+            label = label or f"Wallet {len(get_wallets(user_id))}"
             await update.message.reply_text(
                 f"✅ Wallet Added\n\n"
                 f"Name: {label}\n"
