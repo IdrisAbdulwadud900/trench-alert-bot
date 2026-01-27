@@ -1031,7 +1031,30 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     elif choice == "home_lists":
-        await action_lists(update, context)
+        user_lists = get_lists(user_id)
+        
+        keyboard = [
+            [InlineKeyboardButton("➕ Create List", callback_data="list_create")],
+            [InlineKeyboardButton("📂 View Lists", callback_data="list_view")],
+            [InlineKeyboardButton("◀ Back", callback_data="home_back")]
+        ]
+        
+        if user_lists:
+            msg = f"📂 Lists / Meta\n\n"
+            msg += f"Group coins by narrative and\ntrack meta movements.\n\n"
+            msg += f"You have {len(user_lists)} list(s):\n\n"
+            for list_name, coins in user_lists.items():
+                msg += f"• {list_name} ({len(coins)} coins)\n"
+        else:
+            msg = "📂 Lists / Meta\n\n"
+            msg += "Group coins by narrative and\n"
+            msg += "track meta movements.\n\n"
+            msg += "Choose an option:"
+        
+        await query.message.reply_text(
+            msg,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         return
     
     elif choice == "action_lists":
