@@ -91,10 +91,17 @@ async def start_monitor(bot: Bot):
             # Monitor wallets for buys
             for user_id, wallets in wallets_data.items():
                 try:
+                    # Convert user_id to int safely
+                    try:
+                        user_id_int = int(user_id)
+                    except (ValueError, TypeError):
+                        # Skip invalid user IDs (like test_999 from tests)
+                        continue
+                    
                     chat = get_chat_settings(user_id)
                     
                     # Check if user has wallet alert permission
-                    if not can_wallet_alerts(chat, int(user_id)):
+                    if not can_wallet_alerts(chat, user_id_int):
                         continue
                     
                     for wallet in wallets:
