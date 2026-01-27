@@ -82,9 +82,10 @@ def detect_wallet_buys(
     for txn in txns:
         if txn["type"] == "aggregated":
             # Check if there's significant buying activity
-            if txn["buys_5m"] > txn["sells_5m"] and txn["volume_5m"] > min_buy_usd:
+            if txn["buys_5m"] > txn["sells_5m"] and txn["volume_5m"] >= min_buy_usd:
                 # Create aggregated signal (not wallet-specific without Helius)
-                cache_key = f"{token_ca}_{int(txn['timestamp'] / 60)}"
+                bucket_min = int(txn['timestamp'] / 60)
+                cache_key = f"{token_ca}_{bucket_min}"
                 
                 if cache_key not in _tx_cache:
                     _tx_cache[cache_key] = True
@@ -94,8 +95,11 @@ def detect_wallet_buys(
                         "token_ca": token_ca,
                         "buys": txn["buys_5m"],
                         "sells": txn["sells_5m"],
-                        "volume_usd": txn["volume_5m"],
+                        "usd": txn["volume_5m"],
                         "timestamp": txn["timestamp"],
+                        "tx_id": f"agg_{bucket_min}",
+                        "side": "buy",
+                        "address": "aggregated",
                         "note": "Aggregated buy signal - integrate Helius for wallet-specific tracking"
                     })
     
@@ -107,16 +111,25 @@ def detect_wallet_buys(
 
 def format_wallet_buy_alert(buy_info: Dict, coin_symbol: str = "Token") -> str:
     """Format a wallet buy alert message."""
-    
-    if buy_info["type"] == "volume_spike":
+
+    if buy_info.get("type") == "volume_spike":
+        # UX-forward message, even for aggregated signals
+        wallet_disp = buy_info.get("address") or "unknown"
+        size_usd = int(buy_info.get("usd", 0))
         return (
-            f"🔔 Buy Activity Detected — {coin_symbol}\n\n"
-            f"Buys (5m): {buy_info['buys']}\n"
-            f"Volume: ${int(buy_info['volume_usd']):,}\n\n"
-            f"💡 Tip: Add Helius API for wallet-specific tracking"
+            f"🟢 WALLET BUY DETECTED\n\n"
+            f"Token: ${coin_symbol}\n"
+            f"Wallet: {wallet_disp}\n"
+            f"Buy Size: ${size_usd:,}\n"
+            f"Tracked by: Wallet Alert\n\n"
+            f"(Aggregated activity — add RPC for wallet-level)"
         )
-    
-    return f"🔔 Buy detected for {coin_symbol}"
+
+    return (
+        f"🟢 WALLET BUY DETECTED\n\n"
+        f"Token: ${coin_symbol}\n"
+        f"Tracked by: Wallet Alert"
+    )
 
 def clean_transaction_cache():
     """Clean up old transaction cache entries."""

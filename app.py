@@ -28,82 +28,110 @@ from wallets import (
     get_wallets,
     remove_wallet
 )
-from lists import (
-    create_list,
-    add_coin_to_list,
-    get_lists
-)
-from groups import (
-    create_group,
-    add_group_admin,
-    get_group_admins,
-    add_coin_to_group,
-    get_group_coins,
-    remove_coin_from_group,
-    update_group_coin_alerts,
-    update_group_coin_triggered,
-    update_group_coin_history,
-    get_all_group_ids
-)
-from intelligence import (
-    update_coin_history,
-    compute_range_position,
-    detect_dump_stabilize_bounce,
-    format_smart_alert,
-    should_suppress_alert,
-    get_range_description
-)
-from subscriptions import (
-    get_user_tier,
-    get_user_limits,
-    can_add_coin,
-    can_add_wallet,
-    can_add_list,
-    can_use_meta_alerts,
-    can_use_wallet_alerts,
-    get_upgrade_message,
-    get_pricing_message
-)
-from meta import (
-    analyze_list_performance,
-    detect_list_heating,
-    format_list_alert,
-    get_top_performers_in_list
-)
-from onchain import (
-    detect_wallet_buys,
-    format_wallet_buy_alert
-)
-
-# Validate BOT_TOKEN
-if not BOT_TOKEN:
-    raise ValueError(
-        "❌ BOT_TOKEN is not set!\n"
-        "Please run: export BOT_TOKEN=your_token_here\n"
-        "Then: python app.py"
-    )
-# -------------------------
-# In-memory user state
-# -------------------------
-user_state = {}
-
-# -------------------------
-# Admin Check Helper
-# -------------------------
-async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Check if user is admin in a group, or return True for private chat."""
-    chat = update.effective_chat
-    
-    # Private chat → treat as admin (own data)
-    if chat.type not in ["group", "supergroup"]:
-        return True
-    
-    # Group → check Telegram admins
-    user_id = update.effective_user.id
-    try:
-        admins = await context.bot.get_chat_administrators(chat.id)
-        admin_ids = [admin.user.id for admin in admins]
-        return user_id in admin_ids
+                        for coin in coins:
+                            try:
+                                if not isinstance(coin, dict):
+                                    continue
+                                
+                                ca = coin.get("ca")
+                                if not ca:
+                                    continue
+                                
+                                token = get_market_cap(ca)
+                                if not token:
+                                    continue
+                                
+                                mc = token["mc"]
+                                start = coin["start_mc"]
+                                symbol = coin.get("symbol", "Token")
+                                
+                                # Update history
+                                hist = coin.setdefault("history", {})
+                                mc_hist = hist.setdefault("mc", [])
+                                mc_hist.append(mc)
+                                
+                                # Update extremes
+                                ath = coin.get("ath_mc", start)
+                                low = coin.get("low_mc", start)
+                                
+                                ath = max(ath, mc)
+                                low = min(low, mc)
+                                
+                                coin["ath_mc"], coin["low_mc"] = ath, low
+                                
+                                alerts = coin.get("alerts", {})
+                                triggered = coin.get("triggered", {})
+                                
+                                # MC alert
+                                if "mc" in alerts and not triggered.get("mc"):
+                                    if mc <= alerts["mc"]:
+                                        loop.run_until_complete(bot.send_message(
+                                            user_id,
+                                            f"🚨 MC ALERT\n"
+                                            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                            f"Target: ${int(alerts['mc']):,}\n"
+                                            f"Current: ${int(mc):,}"
+                                        ))
+                                        triggered["mc"] = True
+                                
+                                # X alert
+                                if alerts.get("x") and not triggered.get("x"):
+                                    target_x = alerts["x"]
+                                    multiple = mc / start if start else 0
+                                    if multiple >= target_x:
+                                        loop.run_until_complete(bot.send_message(
+                                            user_id,
+                                            f"🚀 X ALERT\n"
+                                            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                            f"Reached {multiple:.2f}x\n"
+                                            f"MC: ${int(mc):,}"
+                                        ))
+                                        triggered["x"] = True
+                                
+                                # ATH reclaim alert
+                                if alerts.get("reclaim") and not triggered.get("reclaim"):
+                                    reclaim_level = coin["ath_mc"] * 0.95
+                                    if mc >= reclaim_level:
+                                        loop.run_until_complete(bot.send_message(
+                                            user_id,
+                                            f"🔥 ATH RECLAIM\n"
+                                            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                            f"95% of ATH reached\n"
+                                            f"MC: ${int(mc):,}"
+                                        ))
+                                        triggered["reclaim"] = True
+                                
+                                # Wallet buy detection (v1 via DexScreener aggregated activity)
+                                wallet_alert = alerts.get("wallets", {})
+                                if wallet_alert.get("enabled") and can_use_wallet_alerts(user_id):
+                                    user_wallets = get_wallets(user_id)
+                                    min_buy = wallet_alert.get("min_buy_usd", 300)
+                                    watched_addresses = wallet_alert.get("addresses", [])
+                                    
+                                    buys = detect_wallet_buys(ca, user_wallets, min_buy)
+                                    state = coin.setdefault("wallet_state", {})
+                                    last_tx = state.get("last_tx")
+                                    
+                                    for buy in buys:
+                                        # Address filter if provided
+                                        addr = buy.get("address")
+                                        if watched_addresses and addr not in watched_addresses:
+                                            continue
+                                        
+                                        tx_id = buy.get("tx_id")
+                                        if tx_id and tx_id == last_tx:
+                                            continue
+                                        
+                                        # Format + send
+                                        msg = format_wallet_buy_alert(buy, symbol)
+                                        loop.run_until_complete(bot.send_message(user_id, msg))
+                                        state["last_tx"] = tx_id or str(int(buy.get("timestamp", 0)))
+                                        await asyncio.sleep(1)
+                                
+                                # SAVE TRIGGERED STATE BACK TO COIN
+                                coin["triggered"] = triggered
+                                
+                                await asyncio.sleep(2)
     except Exception as e:
         print(f"Admin check error: {e}")
         return False
