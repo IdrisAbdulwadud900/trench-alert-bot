@@ -86,7 +86,10 @@ async def show_coin_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         text += "\n"
     
-    keyboard = [[InlineKeyboardButton("◀ Back", callback_data="menu_coins")]]
+    keyboard = [
+        [InlineKeyboardButton("✏️ Edit Alerts", callback_data="coin_edit_alerts")],
+        [InlineKeyboardButton("◀ Back", callback_data="menu_coins")]
+    ]
     
     await query.message.reply_text(
         text,
@@ -253,4 +256,83 @@ async def toggle_pause_coin(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     
     status = "Paused" if coin["paused"] else "Resumed"
     await query.message.reply_text(f"✅ {status}: {coin.get('ca', '')[:8]}...")
+
+
+async def handle_edit_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show coins to select for editing alerts."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    coins = Tracker.get_user_coins(user_id)
+    
+    if not coins:
+        await query.message.reply_text("No coins to edit.")
+        return
+    
+    text = "✏️ Edit Alerts\n\nSelect coin to modify:"
+    
+    keyboard = []
+    for i, coin in enumerate(coins):
+        ca = coin.get("ca", "")
+        keyboard.append([
+            InlineKeyboardButton(
+                f"{ca[:8]}...{ca[-6:]}",
+                callback_data=f"edit_alerts_{i}"
+            )
+        ])
+    
+    keyboard.append([InlineKeyboardButton("◀ Back", callback_data="coin_list")])
+    
+    await query.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def show_edit_alert_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, coin_index: int):
+    """Show alert editing menu for a specific coin."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    coins = Tracker.get_user_coins(user_id)
+    
+    if coin_index >= len(coins):
+        await query.message.reply_text("❌ Invalid coin selection.")
+        return
+    
+    coin = coins[coin_index]
+    ca = coin.get("ca", "")
+    alerts = coin.get("alerts", {})
+    
+    text = f"✏️ Edit Alerts\n{ca[:8]}...{ca[-6:]}\n\n"
+    text += "Current alerts:\n"
+    
+    if "mc" in alerts:
+        text += f"📉 MC: ${int(alerts['mc']):,}\n"
+    if "pct" in alerts:
+        text += f"📈 %: ±{int(alerts['pct'])}%\n"
+    if "x" in alerts:
+        text += f"🚀 X: {alerts['x']}x\n"
+    if alerts.get("reclaim"):
+        text += f"🔥 ATH Reclaim: ON\n"
+    
+    if not alerts:
+        text += "(No alerts configured)\n"
+    
+    text += "\nSelect alert to modify:"
+    
+    keyboard = [
+        [InlineKeyboardButton("📉 MC Target", callback_data=f"edit_mc_{coin_index}")],
+        [InlineKeyboardButton("📈 % Move", callback_data=f"edit_pct_{coin_index}")],
+        [InlineKeyboardButton("🚀 X Multiple", callback_data=f"edit_x_{coin_index}")],
+        [InlineKeyboardButton("🔥 Toggle ATH Reclaim", callback_data=f"edit_reclaim_{coin_index}")],
+        [InlineKeyboardButton("🗑️ Clear All Alerts", callback_data=f"clear_alerts_{coin_index}")],
+        [InlineKeyboardButton("◀ Back", callback_data="coin_edit_alerts")]
+    ]
+    
+    await query.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
 

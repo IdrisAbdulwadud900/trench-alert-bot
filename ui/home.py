@@ -21,8 +21,9 @@ async def show_home(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📈 Track Coins", callback_data="menu_coins")],
         [InlineKeyboardButton("👛 Watch Wallets", callback_data="menu_wallets")],
-        [InlineKeyboardButton("� Lists", callback_data="menu_lists")],
-        [InlineKeyboardButton("�🔔 Alerts", callback_data="menu_alerts")],
+        [InlineKeyboardButton("📊 Dashboard", callback_data="menu_dashboard")],
+        [InlineKeyboardButton("📋 Lists", callback_data="menu_lists")],
+        [InlineKeyboardButton("📜 Alert History", callback_data="alert_history")],
         [InlineKeyboardButton("⚙️ Settings", callback_data="menu_settings")]
     ]
     

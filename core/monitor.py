@@ -14,6 +14,13 @@ from intelligence import update_coin_history
 from core.alerts import AlertEngine
 from settings import get_chat_settings
 from plans import can_loud_alerts, can_wallet_alerts
+from alert_history import log_alert
+from meta_alerts import evaluate_meta_alerts
+from lists import load_lists
+from core.meta_formatter import format_meta_alert
+from timebased_alerts import should_alert_timeased
+from combination_alerts import CombinationAlerts
+from core.combo_formatter import format_combo_alert
 
 
 async def start_monitor(bot: Bot):
@@ -24,6 +31,65 @@ async def start_monitor(bot: Bot):
         try:
             data = load_data()
             wallets_data = load_wallets()
+            lists_data = load_lists()
+            
+            # Monitor meta alerts for lists
+            for user_id_str, user_lists in lists_data.items():
+                try:
+                    user_id_int = int(user_id_str)
+                    
+                    # Build coin_data dict from user's tracked coins
+                    user_data = data.get(user_id_str, {})
+                    if isinstance(user_data, list):
+                        coins = user_data
+                    else:
+                        coins = user_data.get("coins", [])
+                    
+                    coin_data = {coin.get("ca"): coin for coin in coins if coin.get("ca")}
+                    
+                    # Check each list
+                    for list_name, list_info in user_lists.items():
+                        if isinstance(list_info, dict):
+                            list_coins = list_info.get("coins", [])
+                            meta_alerts = list_info.get("meta_alerts", {})
+                            meta_triggered = list_info.get("meta_triggered", {})
+                            
+                            if meta_alerts and list_coins:
+                                result = evaluate_meta_alerts(
+                                    list_name,
+                                    list_coins,
+                                    coin_data,
+                                    meta_alerts,
+                                    meta_triggered
+                                )
+                                
+                                if result:
+                                    # Format alert message
+                                    msg = format_meta_alert(result)
+                                    
+                                    # Send alert
+                                    chat = get_chat_settings(user_id_str)
+                                    disable_notification = not can_loud_alerts(chat, user_id_str)
+                                    
+                                    await bot.send_message(
+                                        chat_id=user_id_int,
+                                        text=msg,
+                                        disable_notification=disable_notification
+                                    )
+                                    
+                                    # Log alert
+                                    log_alert(user_id_int, f"meta_{result['type']}", list_name, result)
+                                    
+                                    # Mark as triggered
+                                    list_info["meta_triggered"][result["type"]] = True
+                
+                except Exception as e:
+                    print(f"Meta alert error for user {user_id_str}: {e}")
+                    continue
+            
+            # Save updated list states
+            from lists import save_lists
+            save_lists(lists_data)
             
             # Monitor coins
             for user_id, user_data in data.items():
@@ -58,10 +124,38 @@ async def start_monitor(bot: Bot):
                             # Update coin history
                             coin = update_coin_history(coin, mc, volume_24h, liquidity)
                             
-                            # Evaluate all alerts
+                            # Evaluate standard alerts
                             alerts_to_fire = AlertEngine.evaluate_all(
                                 coin, mc, volume_24h, user_mode, liquidity
                             )
+                            
+                            # Evaluate time-based alerts
+                            start_mc = coin.get("start_mc", 0)
+                            timebased_result = should_alert_timeased(
+                                int(user_id), ca, mc, start_mc
+                            )
+                            if timebased_result:
+                                alerts_to_fire.append((
+                                    timebased_result["type"],
+                                    timebased_result["message"]
+                                ))
+                            
+                            # Evaluate combination alerts
+                            combo_alerts = coin.get("combo_alerts", {})
+                            combo_triggered = coin.get("combo_triggered", {})
+                            avg_volume = coin.get("avg_volume", 0)
+                            
+                            if combo_alerts:
+                                combo_results = CombinationAlerts.evaluate_all_combos(
+                                    mc, start_mc, volume_24h, liquidity,
+                                    avg_volume, combo_alerts, combo_triggered
+                                )
+                                
+                                for combo_type, details in combo_results:
+                                    msg = format_combo_alert(combo_type, details, ca)
+                                    alerts_to_fire.append((f"combo_{combo_type}", msg))
+                                    coin.setdefault("combo_triggered", {})
+                                    coin["combo_triggered"][combo_type] = True
                             
                             # Send alerts
                             for alert_type, message in alerts_to_fire:
@@ -73,6 +167,9 @@ async def start_monitor(bot: Bot):
                                     text=message,
                                     disable_notification=disable_notification
                                 )
+                                
+                                # Log alert to history
+                                log_alert(int(user_id), alert_type, ca, {"message": message, "mc": mc})
                                 
                                 # Mark as triggered
                                 coin.setdefault("triggered", {})

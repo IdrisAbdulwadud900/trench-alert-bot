@@ -25,7 +25,9 @@ from ui.coins import (
     handle_remove_coin,
     confirm_remove_coin,
     handle_pause_coin,
-    toggle_pause_coin
+    toggle_pause_coin,
+    handle_edit_alerts,
+    show_edit_alert_menu
 )
 from ui.wallets import (
     show_wallets_menu,
@@ -43,6 +45,7 @@ from ui.lists import (
     show_meta_alerts
 )
 from ui.dashboard import show_dashboard
+from ui.history import show_alert_history, clear_history_confirm, clear_history_confirmed
 from core.monitor import start_monitor
 
 
@@ -186,6 +189,83 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await toggle_pause_coin(update, context, coin_index)
         return
     
+    if choice == "coin_edit_alerts":
+        await query.answer()
+        await handle_edit_alerts(update, context)
+        return
+    
+    if choice.startswith("edit_alerts_"):
+        await query.answer()
+        coin_index = int(choice.split("_")[-1])
+        await show_edit_alert_menu(update, context, coin_index)
+        return
+    
+    if choice.startswith("edit_mc_") or choice.startswith("edit_pct_") or choice.startswith("edit_x_"):
+        await query.answer()
+        parts = choice.split("_")
+        alert_type = parts[1]
+        coin_index = int(parts[2])
+        
+        # Store in user state for message handler
+        if "user_states" not in context.bot_data:
+            context.bot_data["user_states"] = {}
+        
+        context.bot_data["user_states"][query.from_user.id] = {
+            "step": "editing_alert",
+            "alert_type": alert_type,
+            "coin_index": coin_index
+        }
+        
+        alert_names = {"mc": "MC Target", "pct": "% Move", "x": "X Multiple"}
+        await query.message.reply_text(
+            f"✏️ Edit {alert_names[alert_type]}\n\n"
+            f"Send the new value:"
+        )
+        return
+    
+    if choice.startswith("edit_reclaim_"):
+        await query.answer()
+        coin_index = int(choice.split("_")[-1])
+        
+        from storage import load_data, save_data
+        data = load_data()
+        user_id_str = str(query.from_user.id)
+        
+        if user_id_str in data:
+            user_data = data[user_id_str]
+            coins = user_data.get("coins", []) if isinstance(user_data, dict) else user_data
+            
+            if coin_index < len(coins):
+                coin = coins[coin_index]
+                alerts = coin.setdefault("alerts", {})
+                current = alerts.get("reclaim", False)
+                alerts["reclaim"] = not current
+                save_data(data)
+                
+                status = "ON" if alerts["reclaim"] else "OFF"
+                await query.message.reply_text(f"✅ ATH Reclaim: {status}")
+        return
+    
+    if choice.startswith("clear_alerts_"):
+        await query.answer()
+        coin_index = int(choice.split("_")[-1])
+        
+        from storage import load_data, save_data
+        data = load_data()
+        user_id_str = str(query.from_user.id)
+        
+        if user_id_str in data:
+            user_data = data[user_id_str]
+            coins = user_data.get("coins", []) if isinstance(user_data, dict) else user_data
+            
+            if coin_index < len(coins):
+                coin = coins[coin_index]
+                coin["alerts"] = {}
+                coin["triggered"] = {}
+                save_data(data)
+                await query.message.reply_text("✅ All alerts cleared")
+        return
+    
     # Alert configuration
     if choice.startswith("alert_config_"):
         await query.answer()
@@ -212,6 +292,28 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         wallet_index = int(choice.split("_")[-1])
         await confirm_remove_wallet(update, context, wallet_index)
+        return
+    
+    # Dashboard
+    if choice == "menu_dashboard":
+        await query.answer()
+        await show_dashboard(update, context)
+        return
+    
+    # Alert History
+    if choice == "alert_history":
+        await query.answer()
+        await show_alert_history(update, context)
+        return
+    
+    if choice == "history_clear":
+        await query.answer()
+        await clear_history_confirm(update, context)
+        return
+    
+    if choice == "history_clear_confirmed":
+        await query.answer()
+        await clear_history_confirmed(update, context)
         return
     
     # Lists
@@ -299,6 +401,51 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     step = state.get("step")
     configuring = state.get("configuring")
+    
+    # Edit alert flow
+    if step == "editing_alert":
+        from storage import load_data, save_data
+        
+        alert_type = state["alert_type"]
+        coin_index = state["coin_index"]
+        
+        try:
+            if alert_type == "mc":
+                value = float(text.replace(",", ""))
+            elif alert_type == "pct":
+                value = int(text)
+            elif alert_type == "x":
+                value = float(text)
+            else:
+                await update.message.reply_text("❌ Invalid alert type")
+                del context.bot_data["user_states"][user_id]
+                return
+            
+            # Update the alert
+            data = load_data()
+            user_id_str = str(user_id)
+            
+            if user_id_str in data:
+                user_data = data[user_id_str]
+                coins = user_data.get("coins", []) if isinstance(user_data, dict) else user_data
+                
+                if coin_index < len(coins):
+                    coin = coins[coin_index]
+                    if "alerts" not in coin:
+                        coin["alerts"] = {}
+                    
+                    coin["alerts"][alert_type] = value
+                    save_data(data)
+                    
+                    alert_names = {"mc": "MC Target", "pct": "% Move", "x": "X Multiple"}
+                    await update.message.reply_text(f"✅ Updated {alert_names[alert_type]} to: {value}")
+            
+            # Clear state
+            del context.bot_data["user_states"][user_id]
+            return
+        except ValueError:
+            await update.message.reply_text("❌ Invalid value. Please enter a number.")
+            return
     
     # Add coin flow - step 1: get CA
     if step == "awaiting_ca":

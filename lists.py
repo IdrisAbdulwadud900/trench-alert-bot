@@ -69,8 +69,13 @@ def get_user_lists(user_id):
     return result
 
 
-def create_list(user_id, name):
-    """Create a new list. Returns True if successful, False if already exists."""
+def create_list(user_id, name, description="", meta_alerts=None):
+    """
+    Create a new list. Returns True if successful, False if already exists.
+    
+    Args:
+        meta_alerts: Optional dict with {"n_pumping": N, "total_mc": threshold, "avg_pct": threshold}
+    """
     data = load_lists()
     uid = str(user_id)
 
@@ -80,7 +85,12 @@ def create_list(user_id, name):
     if name in data[uid]:
         return False  # List already exists
 
-    data[uid][name] = []
+    data[uid][name] = {
+        "coins": [],
+        "description": description,
+        "meta_alerts": meta_alerts or {},
+        "meta_triggered": {}
+    }
     save_lists(data)
     return True
 
