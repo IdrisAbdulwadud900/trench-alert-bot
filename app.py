@@ -74,6 +74,11 @@ from onchain import (
     detect_wallet_buys,
     format_wallet_buy_alert
 )
+from settings import (
+    get_alert_mode,
+    set_alert_mode,
+    get_chat_settings
+)
 
 # Validate BOT_TOKEN
 if not BOT_TOKEN:
@@ -144,6 +149,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("👀 Watch Wallets", callback_data="home_wallets")],
             [InlineKeyboardButton("📂 Lists / Meta", callback_data="home_lists")],
             [InlineKeyboardButton("📊 Dashboard", callback_data="home_dashboard")],
+            [InlineKeyboardButton("🔔 Alert Mode", callback_data="alert_mode")],
             [InlineKeyboardButton("ℹ️ Help", callback_data="home_help")]
         ]
         
@@ -964,6 +970,52 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
+    elif choice == "alert_mode":
+        # Show alert mode settings
+        chat_id = query.message.chat_id
+        current = get_alert_mode(chat_id)
+        
+        text = (
+            "🔔 Alert Mode\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Choose how alerts are delivered:\n\n"
+            f"Current mode: *{current.upper()}*\n\n"
+            "🔊 Loud — Alerts play sound\n"
+            "🔕 Silent — Quiet delivery"
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("🔊 Loud", callback_data="alert_loud")],
+            [InlineKeyboardButton("🔕 Silent", callback_data="alert_silent")],
+            [InlineKeyboardButton("◀ Back", callback_data="home_back")]
+        ]
+        
+        await query.message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+        return
+    
+    elif choice in ["alert_loud", "alert_silent"]:
+        # Set alert mode
+        chat_id = query.message.chat_id
+        
+        if choice == "alert_loud":
+            set_alert_mode(chat_id, "loud")
+            msg = "🔊 Alert mode set to *LOUD*\n\nAlerts will play sound."
+        else:
+            set_alert_mode(chat_id, "silent")
+            msg = "🔕 Alert mode set to *SILENT*\n\nAlerts will be delivered quietly."
+        
+        keyboard = [[InlineKeyboardButton("◀ Back", callback_data="home_back")]]
+        await query.message.reply_text(
+            msg,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+        return
+    
     elif choice == "home_back":
         # Go back to home screen
         keyboard = [
@@ -971,6 +1023,7 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("👀 Watch Wallets", callback_data="home_wallets")],
             [InlineKeyboardButton("📂 Lists / Meta", callback_data="home_lists")],
             [InlineKeyboardButton("📊 Dashboard", callback_data="home_dashboard")],
+            [InlineKeyboardButton("🔔 Alert Mode", callback_data="alert_mode")],
             [InlineKeyboardButton("ℹ️ Help", callback_data="home_help")]
         ]
         await query.message.reply_text(
@@ -1483,13 +1536,23 @@ def monitor_loop_sync(bot_arg):
                                 
                                 if bounce_detected and not triggered.get("bounce"):
                                     msg = format_smart_alert(coin, mc, bounce_type, user_mode)
-                                    loop.run_until_complete(bot.send_message(user_id, msg))
+                                    mode = get_alert_mode(user_id)
+                                    loop.run_until_complete(bot.send_message(
+                                        chat_id=user_id,
+                                        text=msg,
+                                        disable_notification=(mode == "silent")
+                                    ))
                                     triggered["bounce"] = True
 
                                 if "mc" in alerts and not triggered.get("mc"):
                                     if mc <= alerts["mc"]:
                                         msg = format_smart_alert(coin, mc, "mc_break", user_mode)
-                                        loop.run_until_complete(bot.send_message(user_id, msg))
+                                        mode = get_alert_mode(user_id)
+                                        loop.run_until_complete(bot.send_message(
+                                            chat_id=user_id,
+                                            text=msg,
+                                            disable_notification=(mode == "silent")
+                                        ))
                                         triggered["mc"] = True
 
                                 if "pct" in alerts and not triggered.get("pct"):
@@ -1507,30 +1570,43 @@ def monitor_loop_sync(bot_arg):
                                             f"Position: {get_range_description(range_pos)}\n"
                                             f"MC: ${int(mc):,}"
                                         )
-                                        loop.run_until_complete(bot.send_message(user_id, msg))
+                                        mode = get_alert_mode(user_id)
+                                        loop.run_until_complete(bot.send_message(
+                                            chat_id=user_id,
+                                            text=msg,
+                                            disable_notification=(mode == "silent")
+                                        ))
                                         triggered["pct"] = True
 
                                 if "x" in alerts and not triggered.get("x"):
                                     multiple = mc / start
                                     if multiple >= alerts["x"]:
+                                        mode = get_alert_mode(user_id)
                                         loop.run_until_complete(bot.send_message(
-                                            user_id,
-                                            f"🚀 X ALERT\n"
-                                            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                            f"Reached {multiple:.2f}x\n"
-                                            f"MC: ${int(mc):,}"
+                                            chat_id=user_id,
+                                            text=(
+                                                f"🚀 X ALERT\n"
+                                                f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                                f"Reached {multiple:.2f}x\n"
+                                                f"MC: ${int(mc):,}"
+                                            ),
+                                            disable_notification=(mode == "silent")
                                         ))
                                         triggered["x"] = True
 
                                 if alerts.get("reclaim") and not triggered.get("reclaim"):
                                     reclaim_level = coin["ath_mc"] * 0.95
                                     if mc >= reclaim_level:
+                                        mode = get_alert_mode(user_id)
                                         loop.run_until_complete(bot.send_message(
-                                            user_id,
-                                            f"🔥 ATH RECLAIM\n"
-                                            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                            f"95% of ATH reached\n"
-                                            f"MC: ${int(mc):,}"
+                                            chat_id=user_id,
+                                            text=(
+                                                f"🔥 ATH RECLAIM\n"
+                                                f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                                f"95% of ATH reached\n"
+                                                f"MC: ${int(mc):,}"
+                                            ),
+                                            disable_notification=(mode == "silent")
                                         ))
                                         triggered["reclaim"] = True
 
@@ -1617,14 +1693,24 @@ async def monitor_loop(app):
                             
                             if bounce_detected and not triggered.get("bounce"):
                                 msg = format_smart_alert(coin, mc, bounce_type, user_mode)
-                                await bot.send_message(user_id, msg)
+                                mode = get_alert_mode(user_id)
+                                await bot.send_message(
+                                    chat_id=user_id,
+                                    text=msg,
+                                    disable_notification=(mode == "silent")
+                                )
                                 triggered["bounce"] = True
 
                             # MC alert (with smart formatting)
                             if "mc" in alerts and not triggered.get("mc"):
                                 if mc <= alerts["mc"]:
                                     msg = format_smart_alert(coin, mc, "mc_break", user_mode)
-                                    await bot.send_message(user_id, msg)
+                                    mode = get_alert_mode(user_id)
+                                    await bot.send_message(
+                                        chat_id=user_id,
+                                        text=msg,
+                                        disable_notification=(mode == "silent")
+                                    )
                                     triggered["mc"] = True
 
                             # % change alert (up OR down)
@@ -1643,19 +1729,28 @@ async def monitor_loop(app):
                                         f"Position: {get_range_description(range_pos)}\n"
                                         f"MC: ${int(mc):,}"
                                     )
-                                    await bot.send_message(user_id, msg)
+                                    mode = get_alert_mode(user_id)
+                                    await bot.send_message(
+                                        chat_id=user_id,
+                                        text=msg,
+                                        disable_notification=(mode == "silent")
+                                    )
                                     triggered["pct"] = True
 
                             # X multiple alert
                             if "x" in alerts and not triggered.get("x"):
                                 multiple = mc / start
                                 if multiple >= alerts["x"]:
+                                    mode = get_alert_mode(user_id)
                                     await bot.send_message(
-                                        user_id,
-                                        f"🚀 X ALERT\n"
-                                        f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                        f"Reached {multiple:.2f}x\n"
-                                        f"MC: ${int(mc):,}"
+                                        chat_id=user_id,
+                                        text=(
+                                            f"🚀 X ALERT\n"
+                                            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                            f"Reached {multiple:.2f}x\n"
+                                            f"MC: ${int(mc):,}"
+                                        ),
+                                        disable_notification=(mode == "silent")
                                     )
                                     triggered["x"] = True
 
@@ -1663,12 +1758,16 @@ async def monitor_loop(app):
                             if alerts.get("reclaim") and not triggered.get("reclaim"):
                                 reclaim_level = coin["ath_mc"] * 0.95
                                 if mc >= reclaim_level:
+                                    mode = get_alert_mode(user_id)
                                     await bot.send_message(
-                                        user_id,
-                                        f"🔥 ATH RECLAIM\n"
-                                        f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                        f"95% of ATH reached\n"
-                                        f"MC: ${int(mc):,}"
+                                        chat_id=user_id,
+                                        text=(
+                                            f"🔥 ATH RECLAIM\n"
+                                            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                            f"95% of ATH reached\n"
+                                            f"MC: ${int(mc):,}"
+                                        ),
+                                        disable_notification=(mode == "silent")
                                     )
                                     triggered["reclaim"] = True
 
@@ -1728,7 +1827,12 @@ async def monitor_loop(app):
                                                     },
                                                     symbol
                                                 )
-                                                await bot.send_message(user_id, alert_msg)
+                                                mode = get_alert_mode(user_id)
+                                                await bot.send_message(
+                                                    chat_id=user_id,
+                                                    text=alert_msg,
+                                                    disable_notification=(mode == "silent")
+                                                )
                                                 await asyncio.sleep(1)
                                         
                                         except Exception as wallet_err:
@@ -1772,7 +1876,12 @@ async def monitor_loop(app):
                                     list_state_key = f"list_alert_{list_name}"
                                     if not triggered.get(list_state_key):
                                         alert_msg = format_list_alert(list_name, metrics, reason)
-                                        await bot.send_message(user_id, alert_msg)
+                                        mode = get_alert_mode(user_id)
+                                        await bot.send_message(
+                                            chat_id=user_id,
+                                            text=alert_msg,
+                                            disable_notification=(mode == "silent")
+                                        )
                                         triggered[list_state_key] = True
                                         await asyncio.sleep(1)
                     
@@ -1829,7 +1938,12 @@ async def monitor_loop(app):
                                             f"MC hit ${int(alerts['mc']):,}\n"
                                             f"Current: ${int(mc):,}"
                                         )
-                                        await bot.send_message(group_id, msg)
+                                        mode = get_alert_mode(group_id)
+                                        await bot.send_message(
+                                            chat_id=group_id,
+                                            text=msg,
+                                            disable_notification=(mode == "silent")
+                                        )
                                         triggered["mc"] = True
                                 
                                 # ATH reclaim alert
@@ -1841,7 +1955,12 @@ async def monitor_loop(app):
                                             f"ATH reclaim underway\n"
                                             f"Current: ${int(mc):,}"
                                         )
-                                        await bot.send_message(group_id, msg)
+                                        mode = get_alert_mode(group_id)
+                                        await bot.send_message(
+                                            chat_id=group_id,
+                                            text=msg,
+                                            disable_notification=(mode == "silent")
+                                        )
                                         triggered["reclaim"] = True
                                 
                                 # Persist triggered state to storage
