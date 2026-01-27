@@ -172,10 +172,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
-        # PRIVATE MODE (unchanged)
+        # PRIVATE MODE
         keyboard = [
             [InlineKeyboardButton("➕ Track Coin", callback_data="home_track_coin")],
-            [InlineKeyboardButton("👀 Wallet Alerts", callback_data="home_wallets")],
+            [InlineKeyboardButton("👛 Wallet Alerts", callback_data="home_wallets")],
             [InlineKeyboardButton("📂 Lists / Meta", callback_data="home_lists")],
             [InlineKeyboardButton("📊 Dashboard", callback_data="home_dashboard")],
             [InlineKeyboardButton("🔔 Alert Mode", callback_data="alert_mode")],
@@ -185,7 +185,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "🚨 Trench Alert Bot\n\n"
             "Smart alerts for coins, wallets & narratives.\n\n"
-            "Choose an action:",
+            "Choose an action below:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -378,25 +378,12 @@ async def pricing_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "ℹ️ Trench Alert — Help\n\n"
-        "➕ /add\n"
-        "Add a new coin to monitor\n\n"
-        "📊 /status\n"
-        "View live market cap, drawdown & X\n\n"
-        "📋 /list\n"
-        "See all monitored coins\n\n"
-        "⚙️ /mode\n"
-        "Choose alert profile (conservative/aggressive/sniper)\n\n"
-        "❌ /remove <CA>\n"
-        "Stop monitoring a coin\n\n"
-        "💎 /pricing\n"
-        "View subscription plans\n\n"
-        "Alert types:\n"
-        "• Market Cap → alert at a target MC\n"
-        "• % Move → alert on % change\n"
-        "• X Multiple → alert when you reach Xx\n"
-        "• Wallet Buy → track smart money (Pro)\n\n"
-        "Use /start to open the menu."
+        "ℹ️ How Trench Alert Works\n\n"
+        "• Track coins by MC or %\n"
+        "• Get wallet buy alerts (Pro)\n"
+        "• Detect meta rotations\n"
+        "• Control alert sounds\n\n"
+        "Use the buttons to navigate."
     )
 
 async def upgrade_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1022,6 +1009,7 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from settings import get_chat_settings
         chat = get_chat_settings(user_id)
         plan = get_plan(chat, user_id)
+        alert_mode = get_alert_mode(user_id)
         
         # Plan display with pricing
         plan_display = {
@@ -1034,14 +1022,18 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         wallet_status = "ON" if len(wallets) > 0 else "OFF"
         
         msg = (
-            f"📊 Your Dashboard\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📊 Your Dashboard\n\n"
             f"Tracked coins: {len(coins)}\n"
             f"Wallet alerts: {wallet_status}\n"
             f"Lists: {len(user_lists)}\n"
-            f"Plan: {plan_display}\n\n"
-            f"Use buttons to manage alerts."
+            f"Alert mode: {alert_mode.upper()}\n"
+            f"Plan: {plan_display}"
         )
+        
+        # Add upgrade prompt for free users
+        if plan == "free":
+            msg += "\n\nUpgrade to unlock wallet & meta alerts"
+        
         keyboard = [[InlineKeyboardButton("◀ Back", callback_data="home_back")]]
         await query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
         return
@@ -1069,13 +1061,13 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = query.message.chat_id
         current = get_alert_mode(chat_id)
         
+        current_emoji = "🔊" if current == "loud" else "🔕"
+        current_text = current.upper()
+        
         text = (
-            "🔔 Alert Mode\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "Choose how alerts are delivered:\n\n"
-            f"Current mode: *{current.upper()}*\n\n"
-            "🔊 Loud — Alerts play sound\n"
-            "🔕 Silent — Quiet delivery"
+            "🔔 Alert Mode\n\n"
+            "Choose how alerts are delivered.\n\n"
+            f"Current: {current_emoji} {current_text}"
         )
         
         keyboard = [
@@ -1086,8 +1078,7 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.message.reply_text(
             text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
     
@@ -1122,7 +1113,7 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Go back to home screen
         keyboard = [
             [InlineKeyboardButton("➕ Track Coin", callback_data="home_track_coin")],
-            [InlineKeyboardButton("👀 Wallet Alerts", callback_data="home_wallets")],
+            [InlineKeyboardButton("� Wallet Alerts", callback_data="home_wallets")],
             [InlineKeyboardButton("📂 Lists / Meta", callback_data="home_lists")],
             [InlineKeyboardButton("📊 Dashboard", callback_data="home_dashboard")],
             [InlineKeyboardButton("🔔 Alert Mode", callback_data="alert_mode")],
@@ -1131,7 +1122,7 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(
             "🚨 Trench Alert Bot\n\n"
             "Smart alerts for coins, wallets & narratives.\n\n"
-            "Choose an action:",
+            "Choose an action below:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
