@@ -758,15 +758,37 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if "ca" not in state:
         # Step 1: User sends contract address
+        # Validate format first (Solana address: 32-44 chars, base58)
+        if len(text) < 32 or len(text) > 44:
+            await update.message.reply_text("❌ Invalid address length. Solana addresses are 32-44 characters.")
+            return
+        
+        if any(char in text for char in ['0', 'O', 'I', 'l']):
+            await update.message.reply_text("❌ Invalid address format. Solana addresses use base58 (no 0, O, I, l).")
+            return
+        
+        # Try to fetch token data (but don't fail if API is down)
         try:
             token = get_token_data(text)
             if not token or not token.get("mc"):
-                await update.message.reply_text("❌ Invalid token. Send CA again.")
-                return
+                # Token fetch failed, but accept the CA anyway
+                await update.message.reply_text(
+                    "⚠️ Warning: Could not fetch token data.\n\n"
+                    "This could mean:\n"
+                    "• Token not on DexScreener yet\n"
+                    "• Low liquidity (< $1k)\n"
+                    "• API temporarily unavailable\n\n"
+                    "Continuing anyway...\n"
+                    "(You can still set alerts)"
+                )
+                token = {"mc": 0, "liquidity": 0}  # Use placeholder
         except Exception as e:
             print(f"Token lookup error: {e}")
-            await update.message.reply_text("❌ Error fetching token. Try again.")
-            return
+            await update.message.reply_text(
+                "⚠️ API Error: Could not fetch token data.\n\n"
+                "Continuing anyway (you can still set alerts)..."
+            )
+            token = {"mc": 0, "liquidity": 0}  # Use placeholder
 
         # Step 2: Auto-detect and display token info
         state["ca"] = text
