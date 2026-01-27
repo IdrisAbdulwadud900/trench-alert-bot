@@ -100,6 +100,12 @@ class Tracker:
         return wallet_remove(user_id, address)
     
     @staticmethod
+    def get_user_lists(user_id: str) -> list:
+        """Get all lists for a user."""
+        from lists import get_user_lists as lists_get_user
+        return lists_get_user(user_id)
+    
+    @staticmethod
     def create_list(user_id: str, name: str) -> bool:
         """Create a new list."""
         from lists import create_list as list_create
@@ -116,3 +122,9 @@ class Tracker:
         """Add a coin to a list."""
         from lists import add_coin_to_list as list_add_coin
         return list_add_coin(user_id, list_name, ca)
+    
+    @staticmethod
+    def delete_list(user_id: str, list_index: int) -> bool:
+        """Delete a list by index."""
+        from lists import delete_list as list_delete
+        return list_delete(user_id, list_index)

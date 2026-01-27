@@ -186,3 +186,71 @@ async def confirm_remove_coin(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     else:
         await query.message.reply_text("❌ Error removing coin.")
+
+
+async def handle_pause_coin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show coins with pause/resume option."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    coins = Tracker.get_user_coins(user_id)
+    
+    if not coins:
+        await query.message.reply_text("No coins to pause.")
+        return
+    
+    text = "⏸️ Pause/Resume Coins\n\nSelect coin:"
+    
+    keyboard = []
+    for i, coin in enumerate(coins):
+        ca = coin.get("ca", "")
+        paused = coin.get("paused", False)
+        status = "⏸️" if paused else "▶️"
+        
+        keyboard.append([
+            InlineKeyboardButton(
+                f"{status} {ca[:8]}...{ca[-6:]}",
+                callback_data=f"toggle_pause_{i}"
+            )
+        ])
+    
+    keyboard.append([InlineKeyboardButton("◀ Back", callback_data="coin_list")])
+    
+    await query.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def toggle_pause_coin(update: Update, context: ContextTypes.DEFAULT_TYPE, coin_index: int):
+    """Toggle pause state of a coin."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    from storage import load_data, save_data
+    data = load_data()
+    user_id_str = str(user_id)
+    
+    if user_id_str not in data:
+        await query.message.reply_text("❌ Error toggling pause state.")
+        return
+    
+    user_data = data[user_id_str]
+    if isinstance(user_data, dict):
+        coins = user_data.get("coins", [])
+    else:
+        coins = user_data
+    
+    if coin_index >= len(coins):
+        await query.message.reply_text("❌ Invalid coin selection.")
+        return
+    
+    coin = coins[coin_index]
+    current_state = coin.get("paused", False)
+    coin["paused"] = not current_state
+    
+    save_data(data)
+    
+    status = "Paused" if coin["paused"] else "Resumed"
+    await query.message.reply_text(f"✅ {status}: {coin.get('ca', '')[:8]}...")
+

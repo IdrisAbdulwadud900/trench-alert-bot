@@ -50,6 +50,25 @@ def save_lists(data):
     except (IOError, OSError) as e:
         print(f"Error saving lists: {e}")
 
+def get_user_lists(user_id):
+    """Get all lists for a user as a list of dicts."""
+    data = load_lists()
+    uid = str(user_id)
+    
+    if uid not in data:
+        return []
+    
+    # Convert dict to list format for UI
+    result = []
+    for name, coins in data[uid].items():
+        result.append({
+            "name": name,
+            "coins": coins
+        })
+    
+    return result
+
+
 def create_list(user_id, name):
     """Create a new list. Returns True if successful, False if already exists."""
     data = load_lists()
@@ -97,14 +116,21 @@ def remove_coin_from_list(user_id, list_name, ca):
 
     return False
 
-def delete_list(user_id, list_name):
-    """Delete an entire list."""
+def delete_list(user_id, list_index):
+    """Delete a list by index."""
     data = load_lists()
     uid = str(user_id)
 
-    if uid in data and list_name in data[uid]:
-        del data[uid][list_name]
-        save_lists(data)
-        return True
-
-    return False
+    if uid not in data:
+        return False
+    
+    # Convert to list to get by index
+    list_names = list(data[uid].keys())
+    
+    if list_index >= len(list_names):
+        return False
+    
+    list_name = list_names[list_index]
+    del data[uid][list_name]
+    save_lists(data)
+    return True

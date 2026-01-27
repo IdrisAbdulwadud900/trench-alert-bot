@@ -42,6 +42,10 @@ async def start_monitor(bot: Bot):
                             if not ca:
                                 continue
                             
+                            # Skip paused coins
+                            if coin.get("paused", False):
+                                continue
+                            
                             # Fetch current market data
                             token = get_market_cap(ca)
                             if not token:
@@ -56,7 +60,7 @@ async def start_monitor(bot: Bot):
                             
                             # Evaluate all alerts
                             alerts_to_fire = AlertEngine.evaluate_all(
-                                coin, mc, volume_24h, user_mode
+                                coin, mc, volume_24h, user_mode, liquidity
                             )
                             
                             # Send alerts

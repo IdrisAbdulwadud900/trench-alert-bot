@@ -114,6 +114,61 @@ class AlertEngine:
         return False, None
     
     @staticmethod
+    def should_alert_volume_spike(coin: dict, current_volume: float) -> Tuple[bool, Optional[str]]:
+        """Check if volume spike alert should fire."""
+        history = coin.get("history", [])
+        triggered = coin.get("triggered", {})
+        
+        if triggered.get("volume_spike"):
+            return False, None
+        
+        if len(history) < 3:
+            return False, None
+        
+        # Calculate average volume from history
+        avg_volume = sum(h.get("volume_24h", 0) for h in history[-5:]) / min(len(history), 5)
+        
+        if avg_volume > 0 and current_volume > avg_volume * 3:  # 3x volume spike
+            msg = (
+                f"📊 VOLUME SPIKE\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"Volume: ${int(current_volume):,}\n"
+                f"Avg: ${int(avg_volume):,}\n"
+                f"Spike: {(current_volume/avg_volume):.1f}x"
+            )
+            return True, msg
+        
+        return False, None
+    
+    @staticmethod
+    def should_alert_liquidity_change(coin: dict, current_liquidity: float) -> Tuple[bool, Optional[str]]:
+        """Check if liquidity change alert should fire."""
+        history = coin.get("history", [])
+        triggered = coin.get("triggered", {})
+        
+        if triggered.get("liquidity_drop"):
+            return False, None
+        
+        if len(history) < 2:
+            return False, None
+        
+        prev_liquidity = history[-1].get("liquidity", current_liquidity)
+        
+        if prev_liquidity > 0:
+            change_pct = ((current_liquidity - prev_liquidity) / prev_liquidity) * 100
+            
+            if change_pct < -30:  # 30% drop in liquidity
+                msg = (
+                    f"⚠️ LIQUIDITY DROP\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Current: ${int(current_liquidity):,}\n"
+                    f"Change: {change_pct:.1f}%"
+                )
+                return True, msg
+        
+        return False, None
+    
+    @staticmethod
     def should_alert_bounce(coin: dict, current_mc: float, volume_24h: float, user_mode: str) -> Tuple[bool, Optional[str]]:
         """Check if dump/stabilize/bounce pattern detected."""
         triggered = coin.get("triggered", {})
@@ -130,7 +185,7 @@ class AlertEngine:
         return False, None
     
     @staticmethod
-    def evaluate_all(coin: dict, current_mc: float, volume_24h: float, user_mode: str = "aggressive") -> list:
+    def evaluate_all(coin: dict, current_mc: float, volume_24h: float, user_mode: str = "aggressive", liquidity: float = 0) -> list:
         """
         Evaluate all alerts for a coin.
         Returns list of (alert_type, message) tuples that should fire.
@@ -145,6 +200,16 @@ class AlertEngine:
         should_alert, msg = AlertEngine.should_alert_bounce(coin, current_mc, volume_24h, user_mode)
         if should_alert:
             alerts_to_fire.append(("bounce", msg))
+        
+        # Volume spike
+        should_alert, msg = AlertEngine.should_alert_volume_spike(coin, volume_24h)
+        if should_alert:
+            alerts_to_fire.append(("volume_spike", msg))
+        
+        # Liquidity change
+        should_alert, msg = AlertEngine.should_alert_liquidity_change(coin, liquidity)
+        if should_alert:
+            alerts_to_fire.append(("liquidity_drop", msg))
         
         # MC target
         should_alert, msg = AlertEngine.should_alert_mc(coin, current_mc)

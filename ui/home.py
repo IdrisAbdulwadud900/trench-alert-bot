@@ -21,7 +21,8 @@ async def show_home(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📈 Track Coins", callback_data="menu_coins")],
         [InlineKeyboardButton("👛 Watch Wallets", callback_data="menu_wallets")],
-        [InlineKeyboardButton("🔔 Alerts", callback_data="menu_alerts")],
+        [InlineKeyboardButton("� Lists", callback_data="menu_lists")],
+        [InlineKeyboardButton("�🔔 Alerts", callback_data="menu_alerts")],
         [InlineKeyboardButton("⚙️ Settings", callback_data="menu_settings")]
     ]
     
@@ -51,6 +52,10 @@ async def handle_home_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     elif choice == "menu_wallets":
         from ui.wallets import show_wallets_menu
         await show_wallets_menu(update, context)
+    
+    elif choice == "menu_lists":
+        from ui.lists import show_lists_menu
+        await show_lists_menu(update, context)
     
     elif choice == "menu_alerts":
         await query.message.reply_text("🔔 Alerts menu - Coming soon")

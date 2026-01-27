@@ -23,7 +23,9 @@ from ui.coins import (
     start_add_coin,
     show_configure_alerts,
     handle_remove_coin,
-    confirm_remove_coin
+    confirm_remove_coin,
+    handle_pause_coin,
+    toggle_pause_coin
 )
 from ui.wallets import (
     show_wallets_menu,
@@ -33,6 +35,14 @@ from ui.wallets import (
     confirm_remove_wallet
 )
 from ui.settings import show_settings_menu, show_alert_mode_setting
+from ui.lists import (
+    show_lists_menu,
+    show_lists_view,
+    start_create_list,
+    show_list_detail,
+    show_meta_alerts
+)
+from ui.dashboard import show_dashboard
 from core.monitor import start_monitor
 
 
@@ -43,7 +53,17 @@ if not BOT_TOKEN:
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
-    await show_home(update, context)
+    # Detect if this is a group
+    is_group = update.effective_chat.type in ["group", "supergroup"]
+    
+    if is_group:
+        await update.message.reply_text(
+            "👋 Trench Alert Bot\n\n"
+            "Add me to your group to track coins together!\n"
+            "Use /start in private chat to configure."
+        )
+    else:
+        await show_home(update, context)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -155,6 +175,17 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await confirm_remove_coin(update, context, coin_index)
         return
     
+    if choice == "coin_pause":
+        await query.answer()
+        await handle_pause_coin(update, context)
+        return
+    
+    if choice.startswith("toggle_pause_"):
+        await query.answer()
+        coin_index = int(choice.split("_")[-1])
+        await toggle_pause_coin(update, context, coin_index)
+        return
+    
     # Alert configuration
     if choice.startswith("alert_config_"):
         await query.answer()
@@ -181,6 +212,44 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         wallet_index = int(choice.split("_")[-1])
         await confirm_remove_wallet(update, context, wallet_index)
+        return
+    
+    # Lists
+    if choice == "menu_lists" or choice == "list_view":
+        await query.answer()
+        await show_lists_view(update, context)
+        return
+    
+    if choice == "list_create":
+        await query.answer()
+        await start_create_list(update, context)
+        return
+    
+    if choice.startswith("list_open_"):
+        await query.answer()
+        list_index = int(choice.split("_")[-1])
+        await show_list_detail(update, context, list_index)
+        return
+    
+    if choice.startswith("list_delete_"):
+        await query.answer()
+        list_index = int(choice.split("_")[-1])
+        from core.tracker import Tracker
+        if Tracker.delete_list(query.from_user.id, list_index):
+            await query.message.reply_text("✅ List deleted")
+        else:
+            await query.message.reply_text("❌ Error deleting list")
+        return
+    
+    if choice == "list_meta":
+        await query.answer()
+        await show_meta_alerts(update, context)
+        return
+    
+    # Dashboard/Alerts
+    if choice == "menu_alerts":
+        await query.answer()
+        await show_dashboard(update, context)
         return
     
     # Settings
@@ -304,6 +373,27 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "❌ Wallet already tracked or error occurred."
                 )
                 context.bot_data["user_states"].pop(user_id, None)
+        return
+    
+    # Create list flow
+    if step == "awaiting_list_name":
+        list_name = text
+        
+        from core.tracker import Tracker
+        
+        if Tracker.create_list(user_id, list_name):
+            context.bot_data["user_states"].pop(user_id, None)
+            
+            await update.message.reply_text(
+                f"✅ List Created\n\n"
+                f"Name: {list_name}\n\n"
+                f"Add coins to your list from the coins menu."
+            )
+        else:
+            await update.message.reply_text(
+                "❌ List already exists with that name."
+            )
+            context.bot_data["user_states"].pop(user_id, None)
         return
     
     # Alert configuration inputs
