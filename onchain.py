@@ -2,21 +2,21 @@
 """
 On-chain detection module for wallet transaction monitoring
 
-This module provides lightweight wallet buy detection using DexScreener's
-transaction feed as a fallback (Helius integration can be added later).
+V2: Uses raw Solana RPC (Layer 1-3) for true wallet-level buy detection.
+Falls back to aggregated signals when wallet list is empty.
 """
 
 import requests
 import time
 from typing import List, Dict, Optional
 
-# Cache for recent transactions to avoid duplicate alerts
+# V1 fallback: aggregated DexScreener signals
 _tx_cache = {}
 CACHE_TTL = 300  # 5 minutes
 
 def get_recent_transactions(token_ca: str, limit: int = 20) -> List[Dict]:
     """
-    Get recent transactions for a token from DexScreener.
+    Get recent transactions for a token from DexScreener (V1 fallback).
     
     Returns list of transactions with wallet addresses and amounts.
     """
@@ -35,10 +35,6 @@ def get_recent_transactions(token_ca: str, limit: int = 20) -> List[Dict]:
         
         # Get the pair with highest liquidity
         main_pair = max(pairs, key=lambda p: p.get("liquidity", {}).get("usd", 0))
-        
-        # DexScreener doesn't expose transaction feed in public API
-        # This is a placeholder for future Helius integration
-        # For now, we'll track based on volume changes
         
         txns = main_pair.get("txns", {})
         
@@ -68,53 +64,102 @@ def detect_wallet_buys(
     """
     Detect if any tracked wallets bought the token.
     
-    Note: This is a simplified version. For real on-chain detection,
-    integrate with Helius or similar RPC provider.
+    V2: Uses wallet_alert_engine (Layer 1-3) for true RPC-based detection.
+    V1 fallback: aggregated volume signals when no wallets tracked.
     
     Returns list of detected buys with wallet info.
     """
-    # For MVP, we use volume spikes as proxy signals
-    # Real implementation would use Helius WebSocket for wallet monitoring
+    from wallet_alert_engine import detect_new_buys
     
-    txns = get_recent_transactions(token_ca, limit=50)
     detected_buys = []
     
-    for txn in txns:
-        if txn["type"] == "aggregated":
-            # Check if there's significant buying activity
-            if txn["buys_5m"] > txn["sells_5m"] and txn["volume_5m"] >= min_buy_usd:
-                # Create aggregated signal (not wallet-specific without Helius)
-                bucket_min = int(txn['timestamp'] / 60)
-                cache_key = f"{token_ca}_{bucket_min}"
+    # V2: Real wallet-level detection
+    if tracked_wallets:
+        for wallet in tracked_wallets:
+            try:
+                # Get last signature from wallet state (passed in via coin data)
+                # For now, we'll fetch without dedup to show latest activity
+                buys = detect_new_buys(
+                    wallet=wallet,
+                    mint=token_ca,
+                    min_buy_usd=min_buy_usd,
+                    last_signature=None,  # Bot will manage this via wallet_state
+                    limit=5
+                )
                 
-                if cache_key not in _tx_cache:
-                    _tx_cache[cache_key] = True
-                    
+                for buy in buys:
                     detected_buys.append({
-                        "type": "volume_spike",
-                        "token_ca": token_ca,
-                        "buys": txn["buys_5m"],
-                        "sells": txn["sells_5m"],
-                        "usd": txn["volume_5m"],
-                        "timestamp": txn["timestamp"],
-                        "tx_id": f"agg_{bucket_min}",
-                        "side": "buy",
-                        "address": "aggregated",
-                        "note": "Aggregated buy signal - integrate Helius for wallet-specific tracking"
+                        "type": "wallet_buy",
+                        "wallet": buy["wallet"],
+                        "mint": buy["mint"],
+                        "delta_tokens": buy["delta_tokens"],
+                        "usd": buy["usd"],
+                        "signature": buy["signature"],
+                        "blockTime": buy.get("blockTime"),
+                        "address": buy["wallet"],  # for compatibility
+                        "tx_id": buy["signature"]
                     })
+                    
+                time.sleep(0.2)  # Rate limit between wallets
+                
+            except Exception as e:
+                print(f"Error checking wallet {wallet[:8]}...: {e}")
+                continue
     
-    # Clean old cache entries
-    current_time = time.time()
-    _tx_cache.clear()  # Simple clear for now
+    # V1 fallback: aggregated signals (when no wallets specified)
+    else:
+        txns = get_recent_transactions(token_ca, limit=50)
+        
+        for txn in txns:
+            if txn["type"] == "aggregated":
+                if txn["buys_5m"] > txn["sells_5m"] and txn["volume_5m"] >= min_buy_usd:
+                    bucket_min = int(txn['timestamp'] / 60)
+                    cache_key = f"{token_ca}_{bucket_min}"
+                    
+                    if cache_key not in _tx_cache:
+                        _tx_cache[cache_key] = True
+                        
+                        detected_buys.append({
+                            "type": "volume_spike",
+                            "token_ca": token_ca,
+                            "buys": txn["buys_5m"],
+                            "sells": txn["sells_5m"],
+                            "usd": txn["volume_5m"],
+                            "timestamp": txn["timestamp"],
+                            "tx_id": f"agg_{bucket_min}",
+                            "side": "buy",
+                            "address": "aggregated",
+                            "note": "Aggregated buy signal"
+                        })
+        
+        _tx_cache.clear()
     
     return detected_buys
 
 def format_wallet_buy_alert(buy_info: Dict, coin_symbol: str = "Token") -> str:
     """Format a wallet buy alert message."""
 
-    if buy_info.get("type") == "volume_spike":
-        # UX-forward message, even for aggregated signals
-        wallet_disp = buy_info.get("address") or "unknown"
+    buy_type = buy_info.get("type", "unknown")
+    
+    if buy_type == "wallet_buy":
+        # V2: True wallet-level detection
+        wallet = buy_info.get("wallet", "unknown")
+        wallet_disp = f"{wallet[:7]}...{wallet[-4:]}" if len(wallet) > 20 else wallet
+        size_usd = buy_info.get("usd", 0)
+        delta_tokens = buy_info.get("delta_tokens", 0)
+        
+        return (
+            f"🟢 WALLET BUY DETECTED\n\n"
+            f"Token: ${coin_symbol}\n"
+            f"Wallet: {wallet_disp}\n"
+            f"Buy Size: ${size_usd:,.2f}\n"
+            f"Tokens: {delta_tokens:,.4f}\n"
+            f"Tracked by: Wallet Alert"
+        )
+    
+    elif buy_type == "volume_spike":
+        # V1 fallback: Aggregated activity
+        wallet_disp = buy_info.get("address") or "aggregated"
         size_usd = int(buy_info.get("usd", 0))
         return (
             f"🟢 WALLET BUY DETECTED\n\n"
@@ -122,7 +167,7 @@ def format_wallet_buy_alert(buy_info: Dict, coin_symbol: str = "Token") -> str:
             f"Wallet: {wallet_disp}\n"
             f"Buy Size: ${size_usd:,}\n"
             f"Tracked by: Wallet Alert\n\n"
-            f"(Aggregated activity — add RPC for wallet-level)"
+            f"(Aggregated activity — add wallets for specific tracking)"
         )
 
     return (
