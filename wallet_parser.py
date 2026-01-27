@@ -25,7 +25,10 @@ def get_transaction(signature: str) -> Dict[str, Any]:
         "method": "getTransaction",
         "params": [
             signature,
-            {"encoding": "jsonParsed"}
+            {
+                "encoding": "jsonParsed",
+                "maxSupportedTransactionVersion": 0  # Support versioned transactions
+            }
         ]
     }
     resp = requests.post(RPC_URL, json=payload, timeout=15)
