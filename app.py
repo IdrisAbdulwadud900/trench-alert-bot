@@ -1502,6 +1502,8 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ========================
     
     elif choice == "wallet_add":
+        await query.answer()
+        
         # Check if user has wallet alert access
         from settings import get_chat_settings
         chat = get_chat_settings(user_id)
@@ -1524,6 +1526,8 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     
     elif choice == "wallet_list":
+        await query.answer()
+        
         wallets = get_wallets(user_id)
         
         if not wallets:
@@ -1539,6 +1543,8 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(msg)
     
     elif choice == "wallet_back":
+        await query.answer()
+        
         await query.message.reply_text(
             "Choose what you want to do:",
             reply_markup=InlineKeyboardMarkup([
