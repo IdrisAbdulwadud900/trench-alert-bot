@@ -1338,6 +1338,160 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(msg)
         return
     
+    elif choice.startswith("mode_"):
+        from storage import set_user_profile
+        mode = choice.replace("mode_", "")
+        set_user_profile(user_id, {"mode": mode})
+        mode_names = {
+            "conservative": "🐢 Conservative",
+            "aggressive": "⚡ Aggressive",
+            "sniper": "🧠 Sniper"
+        }
+        await query.message.reply_text(
+            f"✅ Profile set to {mode_names.get(mode, mode)}\n\n"
+            f"Your alerts will now match your preferences."
+        )
+    
+    # ========================
+    # WALLET TRACKING HANDLERS
+    # ========================
+    
+    elif choice == "wallet_add":
+        # Check if user has wallet alert access
+        from settings import get_chat_settings
+        chat = get_chat_settings(user_id)
+        if not can_wallet_alerts(chat, user_id):
+            msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
+            if msg:
+                await query.message.reply_text(msg)
+            return
+        
+        # Check tier limits
+        wallets = get_wallets(user_id)
+        max_wallets = get_max_wallets(user_id)
+        if max_wallets == 0 or len(wallets) >= max_wallets:
+            msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
+            if msg:
+                await query.message.reply_text(msg)
+            return
+        
+        user_state[user_id] = {"step": "wallet_address"}
+        await query.message.reply_text(
+            "👛 Add Wallet\n\n"
+            "Send a Solana wallet address to track:\n\n"
+            "Paste the full address"
+        )
+    
+    elif choice == "wallet_list":
+        wallets = get_wallets(user_id)
+        
+        if not wallets:
+            await query.message.reply_text("You don't have any wallets yet.")
+            return
+        
+        msg = "📋 Your Wallets\n\n"
+        for i, w in enumerate(wallets, start=1):
+            label = w.get('label', 'Unnamed Wallet')
+            msg += f"{i}. {label}\n"
+            msg += f"   {w['address'][:10]}...{w['address'][-8:]}\n\n"
+        
+        await query.message.reply_text(msg)
+    
+    elif choice == "wallet_remove":
+        wallets = get_wallets(user_id)
+        
+        if not wallets:
+            await query.message.reply_text("You don't have any wallets to remove.")
+            return
+        
+        msg = "🗑️ Remove Wallet\n\nSelect a wallet to remove:\n\n"
+        keyboard = []
+        for i, w in enumerate(wallets):
+            label = w.get('label', 'Unnamed Wallet')
+            address_short = f"{w['address'][:8]}...{w['address'][-6:]}"
+            keyboard.append([InlineKeyboardButton(
+                f"{label} ({address_short})",
+                callback_data=f"remove_wallet_{i}"
+            )])
+        keyboard.append([InlineKeyboardButton("◀ Back", callback_data="home_wallets")])
+        
+        await query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    elif choice.startswith("remove_wallet_"):
+        wallet_index = int(choice.split("_")[-1])
+        wallets = get_wallets(user_id)
+        
+        if wallet_index >= len(wallets):
+            await query.message.reply_text("❌ Invalid wallet selection.")
+            return
+        
+        wallet = wallets[wallet_index]
+        success = remove_wallet(user_id, wallet['address'])
+        
+        if success:
+            await query.message.reply_text(
+                f"✅ Removed wallet:\n{wallet.get('label', 'Unnamed')}\n{wallet['address'][:10]}..."
+            )
+        else:
+            await query.message.reply_text("❌ Error removing wallet.")
+    
+    elif choice == "wallet_back":
+        await query.message.reply_text(
+            "Choose what you want to do:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ Track Coin", callback_data="action_track")],
+                [InlineKeyboardButton("👀 Watch Wallets", callback_data="action_wallets")],
+                [InlineKeyboardButton("📂 Lists / Narratives", callback_data="action_lists")],
+                [InlineKeyboardButton("📊 Dashboard", callback_data="action_dashboard")]
+            ])
+        )
+    
+    # ========================
+    # LISTS & NARRATIVES HANDLERS
+    # ========================
+    
+    elif choice == "list_create":
+        # Check tier limits
+        user_lists = get_lists(user_id)
+        max_lists = get_max_lists(user_id)
+        if len(user_lists) >= max_lists:
+            msg = get_upgrade_prompt(user_id, "max_lists")
+            if msg:
+                await query.message.reply_text(msg)
+            return
+        
+        user_state[user_id] = {"step": "list_name"}
+        await query.message.reply_text(
+            "📝 Create List\n\n"
+            "Send a name for your list:\n\n"
+            "e.g., AI, Bots, Gaming, DeFi"
+        )
+    
+    elif choice == "list_view":
+        user_lists = get_lists(user_id)
+        
+        if not user_lists:
+            await query.message.reply_text("You don't have any lists yet.")
+            return
+        
+        msg = "📂 Your Lists\n\n"
+        for list_name, coins in user_lists.items():
+            msg += f"• {list_name}\n"
+            msg += f"  {len(coins)} coin(s)\n\n"
+        
+        await query.message.reply_text(msg)
+    
+    elif choice == "list_back":
+        await query.message.reply_text(
+            "Choose what you want to do:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ Track Coin", callback_data="action_track")],
+                [InlineKeyboardButton("👀 Watch Wallets", callback_data="action_wallets")],
+                [InlineKeyboardButton("📂 Lists / Meta", callback_data="action_lists")],
+                [InlineKeyboardButton("📊 Dashboard", callback_data="action_dashboard")]
+            ])
+        )
+
     # ALERT CONFIGURATION (inside track coin flow)
     state = user_state.get(user_id)
 
@@ -1528,160 +1682,6 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Active alerts:\n"
                 f"{alerts_display}"
             )
-    
-    elif choice.startswith("mode_"):
-        from storage import set_user_profile
-        mode = choice.replace("mode_", "")
-        set_user_profile(user_id, {"mode": mode})
-        mode_names = {
-            "conservative": "🐢 Conservative",
-            "aggressive": "⚡ Aggressive",
-            "sniper": "🧠 Sniper"
-        }
-        await query.message.reply_text(
-            f"✅ Profile set to {mode_names.get(mode, mode)}\n\n"
-            f"Your alerts will now match your preferences."
-        )
-    
-    # ========================
-    # WALLET TRACKING HANDLERS
-    # ========================
-    
-    elif choice == "wallet_add":
-        # Check if user has wallet alert access
-        from settings import get_chat_settings
-        chat = get_chat_settings(user_id)
-        if not can_wallet_alerts(chat, user_id):
-            msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
-            if msg:
-                await query.message.reply_text(msg)
-            return
-        
-        # Check tier limits
-        wallets = get_wallets(user_id)
-        max_wallets = get_max_wallets(user_id)
-        if max_wallets == 0 or len(wallets) >= max_wallets:
-            msg = get_upgrade_prompt(user_id, "Wallet Buy Alerts")
-            if msg:
-                await query.message.reply_text(msg)
-            return
-        
-        user_state[user_id] = {"step": "wallet_address"}
-        await query.message.reply_text(
-            "👛 Add Wallet\n\n"
-            "Send a Solana wallet address to track:\n\n"
-            "Paste the full address"
-        )
-    
-    elif choice == "wallet_list":
-        wallets = get_wallets(user_id)
-        
-        if not wallets:
-            await query.message.reply_text("You don't have any wallets yet.")
-            return
-        
-        msg = "📋 Your Wallets\n\n"
-        for i, w in enumerate(wallets, start=1):
-            label = w.get('label', 'Unnamed Wallet')
-            msg += f"{i}. {label}\n"
-            msg += f"   {w['address'][:10]}...{w['address'][-8:]}\n\n"
-        
-        await query.message.reply_text(msg)
-    
-    elif choice == "wallet_remove":
-        wallets = get_wallets(user_id)
-        
-        if not wallets:
-            await query.message.reply_text("You don't have any wallets to remove.")
-            return
-        
-        msg = "🗑️ Remove Wallet\n\nSelect a wallet to remove:\n\n"
-        keyboard = []
-        for i, w in enumerate(wallets):
-            label = w.get('label', 'Unnamed Wallet')
-            address_short = f"{w['address'][:8]}...{w['address'][-6:]}"
-            keyboard.append([InlineKeyboardButton(
-                f"{label} ({address_short})",
-                callback_data=f"remove_wallet_{i}"
-            )])
-        keyboard.append([InlineKeyboardButton("◀ Back", callback_data="home_wallets")])
-        
-        await query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
-    
-    elif choice.startswith("remove_wallet_"):
-        wallet_index = int(choice.split("_")[-1])
-        wallets = get_wallets(user_id)
-        
-        if wallet_index >= len(wallets):
-            await query.message.reply_text("❌ Invalid wallet selection.")
-            return
-        
-        wallet = wallets[wallet_index]
-        success = remove_wallet(user_id, wallet['address'])
-        
-        if success:
-            await query.message.reply_text(
-                f"✅ Removed wallet:\n{wallet.get('label', 'Unnamed')}\n{wallet['address'][:10]}..."
-            )
-        else:
-            await query.message.reply_text("❌ Error removing wallet.")
-    
-    elif choice == "wallet_back":
-        await query.message.reply_text(
-            "Choose what you want to do:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("➕ Track Coin", callback_data="action_track")],
-                [InlineKeyboardButton("👀 Watch Wallets", callback_data="action_wallets")],
-                [InlineKeyboardButton("📂 Lists / Narratives", callback_data="action_lists")],
-                [InlineKeyboardButton("📊 Dashboard", callback_data="action_dashboard")]
-            ])
-        )
-    
-    # ========================
-    # LISTS & NARRATIVES HANDLERS
-    # ========================
-    
-    elif choice == "list_create":
-        # Check tier limits
-        user_lists = get_lists(user_id)
-        max_lists = get_max_lists(user_id)
-        if len(user_lists) >= max_lists:
-            msg = get_upgrade_prompt(user_id, "max_lists")
-            if msg:
-                await query.message.reply_text(msg)
-            return
-        
-        user_state[user_id] = {"step": "list_name"}
-        await query.message.reply_text(
-            "📝 Create List\n\n"
-            "Send a name for your list:\n\n"
-            "e.g., AI, Bots, Gaming, DeFi"
-        )
-    
-    elif choice == "list_view":
-        user_lists = get_lists(user_id)
-        
-        if not user_lists:
-            await query.message.reply_text("You don't have any lists yet.")
-            return
-        
-        msg = "📂 Your Lists\n\n"
-        for list_name, coins in user_lists.items():
-            msg += f"• {list_name}\n"
-            msg += f"  {len(coins)} coin(s)\n\n"
-        
-        await query.message.reply_text(msg)
-    
-    elif choice == "list_back":
-        await query.message.reply_text(
-            "Choose what you want to do:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("➕ Track Coin", callback_data="action_track")],
-                [InlineKeyboardButton("👀 Watch Wallets", callback_data="action_wallets")],
-                [InlineKeyboardButton("📂 Lists / Meta", callback_data="action_lists")],
-                [InlineKeyboardButton("📊 Dashboard", callback_data="action_dashboard")]
-            ])
-        )
 
 # -------------------------
 # Monitoring loop (runs in separate thread)
