@@ -49,7 +49,8 @@ async def show_alert_history(update: Update, context: ContextTypes.DEFAULT_TYPE)
             
             text += "\n"
     else:
-        text += "No alerts yet.\n"
+        text += "No alerts yet.\n\n"
+        text += "💡 Alerts will appear here when your tracked coins hit their targets!\n"
     
     keyboard = [
         [InlineKeyboardButton("🗑️ Clear History", callback_data="history_clear")],

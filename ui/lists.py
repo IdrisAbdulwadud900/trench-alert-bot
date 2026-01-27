@@ -39,8 +39,14 @@ async def show_lists_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lists = Tracker.get_user_lists(user_id)
     
     if not lists:
+        keyboard = [[InlineKeyboardButton("➕ Create Your First List", callback_data="list_create")],
+                    [InlineKeyboardButton("◀ Back to Menu", callback_data="home")]]
         await query.message.reply_text(
-            "No lists yet.\n\nUse ➕ Create List to start."
+            "📋 Lists\n\n"
+            "No lists yet.\n\n"
+            "💡 Create lists to group coins by narrative (AI, Gaming, DeFi, etc.)\n"
+            "Get alerted when entire narratives start pumping!",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
     

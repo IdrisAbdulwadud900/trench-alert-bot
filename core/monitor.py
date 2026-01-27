@@ -170,10 +170,16 @@ async def start_monitor(bot: Bot):
                                 chat = get_chat_settings(user_id)
                                 disable_notification = not can_loud_alerts(chat, user_id)
                                 
+                                # Add timestamp and quick action buttons
+                                from datetime import datetime
+                                timestamp = datetime.now().strftime("%H:%M")
+                                enhanced_message = f"[⏰ {timestamp}] {message}"
+                                
                                 await bot.send_message(
                                     chat_id=user_id,
-                                    text=message,
-                                    disable_notification=disable_notification
+                                    text=enhanced_message,
+                                    disable_notification=disable_notification,
+                                    parse_mode="HTML"
                                 )
                                 
                                 # Log alert to history

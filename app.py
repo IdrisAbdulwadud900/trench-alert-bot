@@ -537,13 +537,29 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     save_data(data)
                     
                     alert_names = {"mc": "MC Target", "pct": "% Move", "x": "X Multiple"}
-                    await update.message.reply_text(f"✅ Updated {alert_names[alert_type]} to: {value}")
+                    keyboard = [
+                        [InlineKeyboardButton("📋 View Coins", callback_data="coin_list")],
+                        [InlineKeyboardButton("🏠 Home", callback_data="home")]
+                    ]
+                    await update.message.reply_text(
+                        f"✅ Alert Updated\n\n"
+                        f"{alert_names[alert_type]}: {value}\n\n"
+                        f"You'll be notified when this target is hit!",
+                        reply_markup=InlineKeyboardMarkup(keyboard)
+                    )
             
             # Clear state
             del context.bot_data["user_states"][user_id]
             return
         except ValueError:
-            await update.message.reply_text("❌ Invalid value. Please enter a number.")
+            await update.message.reply_text(
+                "❌ Invalid Number\n\n"
+                "Please enter a valid number.\n\n"
+                "💡 Examples:\n"
+                "MC Target: 100000\n"
+                "% Move: 50\n"
+                "X Multiple: 5"
+            )
             return
     
     # Add coin flow - step 1: get CA
@@ -551,15 +567,44 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from mc import get_market_cap
         from ui.coins import show_configure_alerts
         
-        ca = text
+        ca = text.strip()
+        
+        # Basic validation
+        if len(ca) < 32 or len(ca) > 44:
+            keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="menu_coins")]]
+            await update.message.reply_text(
+                "⚠️ Invalid Address Format\n\n"
+                "Solana addresses are 32-44 characters long.\n\n"
+                "💡 Tip: Copy the full contract address from DexScreener",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return
+        
+        # Show loading indicator
+        loading_msg = await update.message.reply_text("⏳ Validating token...")
         
         # Validate and fetch token info
         token = get_market_cap(ca)
         
+        # Delete loading message
+        try:
+            await loading_msg.delete()
+        except:
+            pass
+        
         if not token or not token.get("mc"):
+            keyboard = [
+                [InlineKeyboardButton("➡️ Try Again", callback_data="coin_add")],
+                [InlineKeyboardButton("❌ Cancel", callback_data="menu_coins")]
+            ]
             await update.message.reply_text(
-                "❌ Invalid token or API error.\n\n"
-                "Please send a valid Solana contract address."
+                "❌ Token Not Found\n\n"
+                "Unable to fetch token data. This could mean:\n"
+                "• Invalid contract address\n"
+                "• Token not listed on DexScreener\n"
+                "• Very new token (not indexed yet)\n\n"
+                "Please verify the address and try again.",
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
             return
         
@@ -576,13 +621,16 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Add wallet flow - step 1: get address
     if step == "awaiting_wallet_address":
-        address = text
+        address = text.strip()
         
         # Basic Solana address validation (32-44 chars, base58)
         if len(address) < 32 or len(address) > 44:
+            keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="menu_wallets")]]
             await update.message.reply_text(
-                "❌ Invalid Solana address.\n\n"
-                "Please send a valid wallet address."
+                "⚠️ Invalid Wallet Address\n\n"
+                "Solana wallet addresses are 32-44 characters long.\n\n"
+                "💡 Example: DYw8j...8cTD",
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
             return
         
@@ -591,9 +639,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         state["step"] = "awaiting_wallet_label"
         
         await update.message.reply_text(
-            "✅ Address received\n\n"
-            "Send a label/name for this wallet\n"
-            "(or type 'skip' to leave unnamed):"
+            "✅ Address Received\n\n"
+            "Now send a label/name for this wallet\n\n"
+            "💡 Examples: 'Smart Money', 'Ansem', 'Dev Team'\n\n"
+            "Or type 'skip' to leave unnamed:"
         )
         return
     
@@ -609,14 +658,24 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Clear state
                 context.bot_data["user_states"].pop(user_id, None)
                 
+                keyboard = [
+                    [InlineKeyboardButton("👛 View Wallets", callback_data="wallet_list")],
+                    [InlineKeyboardButton("🏠 Home", callback_data="home")]
+                ]
                 await update.message.reply_text(
-                    f"✅ Wallet Added\n\n"
-                    f"Label: {label}\n"
-                    f"Address: {address[:10]}...{address[-8:]}"
+                    f"✅ Wallet Added Successfully\n\n"
+                    f"🏷️ Label: {label}\n"
+                    f"📍 Address: {address[:10]}...{address[-8:]}\n\n"
+                    f"🔔 You'll be alerted when this wallet buys into your tracked coins!",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
                 )
             else:
+                keyboard = [[InlineKeyboardButton("◀ Back", callback_data="menu_wallets")]]
                 await update.message.reply_text(
-                    "❌ Wallet already tracked or error occurred."
+                    "❌ Unable to Add Wallet\n\n"
+                    "This wallet may already be tracked.\n\n"
+                    "Check your wallet list or try a different address.",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
                 )
                 context.bot_data["user_states"].pop(user_id, None)
         return
@@ -630,14 +689,24 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if Tracker.create_list(user_id, list_name):
             context.bot_data["user_states"].pop(user_id, None)
             
+            keyboard = [
+                [InlineKeyboardButton("📋 View Lists", callback_data="list_view")],
+                [InlineKeyboardButton("🏠 Home", callback_data="home")]
+            ]
             await update.message.reply_text(
                 f"✅ List Created\n\n"
-                f"Name: {list_name}\n\n"
-                f"Add coins to your list from the coins menu."
+                f"🏷️ Name: {list_name}\n\n"
+                f"💡 Next: Add coins to your list to track narratives!\n"
+                f"You'll get meta alerts when the whole list starts pumping.",
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
         else:
+            keyboard = [[InlineKeyboardButton("➡️ Try Different Name", callback_data="list_create")]]
             await update.message.reply_text(
-                "❌ List already exists with that name."
+                "❌ Name Already Used\n\n"
+                f"You already have a list named '{list_name}'.\n\n"
+                "Choose a different name.",
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
             context.bot_data["user_states"].pop(user_id, None)
         return

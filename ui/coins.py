@@ -39,10 +39,18 @@ async def show_coin_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     coins = Tracker.get_user_coins(user_id)
     
     if not coins:
+        keyboard = [[InlineKeyboardButton("➕ Add Your First Coin", callback_data="coin_add")],
+                    [InlineKeyboardButton("◀ Back to Menu", callback_data="home")]]
         await query.message.reply_text(
-            "No coins tracked yet.\n\nUse ➕ Add Coin to start."
+            "📋 Your Coins\n\n"
+            "No coins tracked yet.\n\n"
+            "💡 Add a coin to start getting alerts when price moves!",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
+    
+    # Show loading message
+    loading_msg = await query.message.reply_text("⏳ Fetching live data...")
     
     text = "📋 Your Coins\n\n"
     
@@ -95,6 +103,12 @@ async def show_coin_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("◀ Back", callback_data="menu_coins")]
     ]
     
+    # Delete loading message
+    try:
+        await loading_msg.delete()
+    except:
+        pass
+    
     await query.message.reply_text(
         text,
         reply_markup=InlineKeyboardMarkup(keyboard),
@@ -115,7 +129,8 @@ async def start_add_coin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.message.reply_text(
         "➕ Add Coin\n\n"
-        "Send the Solana contract address:"
+        "Send the Solana contract address\n\n"
+        "💡 Tip: Copy the address from DexScreener, Birdeye, or Solscan"
     )
 
 
@@ -189,11 +204,17 @@ async def confirm_remove_coin(update: Update, context: ContextTypes.DEFAULT_TYPE
     ca = coin.get("ca")
     
     if Tracker.remove_coin(user_id, ca):
+        keyboard = [[InlineKeyboardButton("📋 View Remaining Coins", callback_data="coin_list")],
+                    [InlineKeyboardButton("🏠 Back to Home", callback_data="home")]]
         await query.message.reply_text(
-            f"✅ Coin Removed\n\n{ca[:8]}...{ca[-6:]}"
+            f"✅ Coin Removed\n\n{ca[:8]}...{ca[-6:]}",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
-        await query.message.reply_text("❌ Error removing coin.")
+        await query.message.reply_text(
+            "❌ Error removing coin\n\n"
+            "Please try again or contact support if the issue persists."
+        )
 
 
 async def handle_pause_coin(update: Update, context: ContextTypes.DEFAULT_TYPE):

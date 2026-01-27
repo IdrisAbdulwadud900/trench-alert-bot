@@ -16,12 +16,18 @@ async def show_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     coins = Tracker.get_user_coins(user_id)
     
     if not coins:
+        keyboard = [[InlineKeyboardButton("➕ Add Coin to Track", callback_data="coin_add")],
+                    [InlineKeyboardButton("◀ Back to Menu", callback_data="home")]]
         await query.message.reply_text(
             "📊 Dashboard\n\n"
-            "No coins tracked yet.\n"
-            "Add coins to see your portfolio."
+            "No coins tracked yet.\n\n"
+            "💡 Add coins to see your portfolio performance, winners/losers, and PnL!",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
+    
+    # Show loading message for API calls
+    loading_msg = await query.message.reply_text("⏳ Calculating portfolio...")
     
     from mc import get_market_cap
     
@@ -92,9 +98,15 @@ async def show_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{i}. {emoji} {ca[:6]}...{ca[-4:]} - {mult:.2f}x\n"
     
     keyboard = [
-        [InlineKeyboardButton("🔄 Refresh", callback_data="menu_alerts")],
-        [InlineKeyboardButton("◀ Back", callback_data="home")]
+        [InlineKeyboardButton("🔄 Refresh Data", callback_data="menu_dashboard")],
+        [InlineKeyboardButton("◀ Back to Menu", callback_data="home")]
     ]
+    
+    # Delete loading message
+    try:
+        await loading_msg.delete()
+    except:
+        pass
     
     await query.message.reply_text(
         text,

@@ -38,8 +38,13 @@ async def show_wallet_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     wallets = Tracker.get_wallets(user_id)
     
     if not wallets:
+        keyboard = [[InlineKeyboardButton("➕ Add Your First Wallet", callback_data="wallet_add")],
+                    [InlineKeyboardButton("◀ Back to Menu", callback_data="home")]]
         await query.message.reply_text(
-            "No wallets tracked yet.\n\nUse ➕ Add Wallet to start."
+            "👛 Watch Wallets\n\n"
+            "No wallets tracked yet.\n\n"
+            "💡 Add smart money wallets to get alerted when they buy!",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
     
