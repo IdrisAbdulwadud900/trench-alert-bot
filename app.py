@@ -938,6 +938,19 @@ async def handle_group_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# DEBUG HANDLER - TEMPORARY
+async def debug_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Catch-all debug handler to see what callbacks are being sent"""
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text(
+        f"🔍 DEBUG CALLBACK:\n\n"
+        f"callback_data = '{query.data}'\n"
+        f"user_id = {query.from_user.id}\n"
+        f"chat_id = {query.message.chat_id}"
+    )
+
+
 # -------------------------
 # Button callback handler
 # -------------------------
@@ -2204,6 +2217,9 @@ def main():
     # Callbacks and message handlers
     app.add_handler(CallbackQueryHandler(alert_choice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # DEBUG: Catch-all callback handler (TEMPORARY - catches any unhandled callbacks)
+    app.add_handler(CallbackQueryHandler(debug_callback))
     
     # Drop any pending updates from previous runs to avoid getUpdates conflicts
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
