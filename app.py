@@ -19,8 +19,7 @@ from storage import (
     remove_coin,
     load_data,
     get_user_profile,
-    get_all_coins,
-    get_user_lists
+    get_all_coins
 )
 from wallets import (
     add_wallet,
