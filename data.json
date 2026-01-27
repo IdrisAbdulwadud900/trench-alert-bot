@@ -4,5 +4,11 @@
     "profile": {
       "mode": "aggressive"
     }
+  },
+  "test_user_999": {
+    "coins": [],
+    "profile": {
+      "mode": "aggressive"
+    }
   }
 }
