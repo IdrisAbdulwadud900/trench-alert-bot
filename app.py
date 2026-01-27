@@ -376,18 +376,49 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Choose alert profile (conservative/aggressive/sniper)\n\n"
         "❌ /remove <CA>\n"
         "Stop monitoring a coin\n\n"
+        "💎 /pricing\n"
+        "View subscription plans\n\n"
         "Alert types:\n"
         "• Market Cap → alert at a target MC\n"
-        "• % Change → alert on up/down move\n"
-        "• X Multiple → alert on X gain\n"
-        "• ATH Reclaim → alert on recovery\n\n"
-        "Profiles:\n"
-        "🐢 Conservative: High quality only\n"
-        "⚡ Aggressive: Balanced (default)\n"
-        "🧠 Sniper: All signals, noisy\n\n"
-        "Tip:\n"
-        "Smart alerts show context, not just numbers"
+        "• % Move → alert on % change\n"
+        "• X Multiple → alert when you reach Xx\n"
+        "• Wallet Buy → track smart money (Pro)\n\n"
+        "Use /start to open the menu."
     )
+
+async def upgrade_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command to manually upgrade users (for testing)."""
+    user_id = update.effective_user.id
+    
+    # Simple admin check - you can add your user ID here
+    ADMIN_IDS = [user_id]  # Add your Telegram user ID here for testing
+    
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ Admin only")
+        return
+    
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "Usage: /upgrade <user_id> <plan>\n\n"
+            "Plans: free, pro, group_pro\n\n"
+            "Example: /upgrade 123456789 pro"
+        )
+        return
+    
+    target_user_id = context.args[0]
+    plan = context.args[1].lower()
+    
+    if plan not in ["free", "pro", "group_pro"]:
+        await update.message.reply_text("Invalid plan. Use: free, pro, or group_pro")
+        return
+    
+    try:
+        set_user_plan(target_user_id, plan)
+        await update.message.reply_text(
+            f"✅ User {target_user_id} upgraded to {plan.upper()}"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
 
 async def mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Let user choose alert profile."""
@@ -2055,6 +2086,7 @@ def main():
     app.add_handler(CommandHandler("mode", mode))
     app.add_handler(CommandHandler("pricing", pricing_cmd))
     app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("upgrade", upgrade_cmd))  # Admin only
     
     # Callbacks and message handlers
     app.add_handler(CallbackQueryHandler(alert_choice))
