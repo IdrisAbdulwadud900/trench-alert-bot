@@ -53,16 +53,17 @@ from intelligence import (
     should_suppress_alert,
     get_range_description
 )
-from subscriptions import (
-    get_user_tier,
-    get_user_limits,
-    can_add_coin,
-    can_add_wallet,
-    can_add_list,
-    can_use_meta_alerts,
+from permissions import (
+    get_user_plan,
     can_use_wallet_alerts,
-    get_upgrade_message,
-    get_pricing_message
+    can_use_meta_alerts,
+    can_use_loud_alerts,
+    get_max_coins,
+    get_max_wallets,
+    get_max_lists,
+    get_upgrade_prompt,
+    check_permission,
+    set_user_plan
 )
 from meta import (
     analyze_list_performance,
@@ -79,6 +80,22 @@ from settings import (
     set_alert_mode,
     get_chat_settings
 )
+
+# Helper for locked features
+async def send_locked_message(chat_id, feature, context=None):
+    """Send professional locked feature message."""
+    allowed, msg = check_permission(chat_id, feature)
+    if not allowed:
+        if context:
+            await context.bot.send_message(chat_id=chat_id, text=msg)
+        else:
+            # For monitor loop
+            from telegram import Bot
+            bot = Bot(token=BOT_TOKEN)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            await loop.create_task(bot.send_message(chat_id=chat_id, text=msg))
+    return allowed
 
 # Validate BOT_TOKEN
 if not BOT_TOKEN:
@@ -322,7 +339,29 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def pricing_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show pricing and subscription tiers."""
-    await update.message.reply_text(get_pricing_message())
+    user_id = update.effective_user.id
+    plan = get_user_plan(user_id)
+    
+    msg = (
+        "💎 Trench Alert Bot — Plans\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"Your plan: {plan.upper()}\n\n"
+        "🆓 FREE\n"
+        "• 3 coins\n"
+        "• MC/% alerts\n"
+        "• Silent alerts only\n\n"
+        "💎 PRO\n"
+        "• 50 coins\n"
+        "• Wallet buy alerts (10 wallets)\n"
+        "• Lists/Meta alerts (5 lists)\n"
+        "• Loud alerts\n\n"
+        "👥 GROUP PRO\n"
+        "• 100 coins\n"
+        "• Group wallet alerts (25 wallets)\n"
+        "• Group meta alerts (10 lists)\n"
+        "• Priority delivery"
+    )
+    await update.message.reply_text(msg)
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -899,8 +938,9 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if choice == "home_track_coin":
         # Check tier limits first
         user_coins = get_user_coins(user_id)
-        if not can_add_coin(user_id, len(user_coins)):
-            await query.message.reply_text(get_upgrade_message(user_id, "max_coins"))
+        max_coins = get_max_coins(user_id)
+        if len(user_coins) >= max_coins:
+            await query.message.reply_text(get_upgrade_prompt(user_id, "max_coins"))
             return
         user_state[user_id] = {}
         await query.message.reply_text("Send token contract address:")
@@ -909,8 +949,9 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif choice == "home_wallets":
         # Check wallet limits
         wallets = get_wallets(user_id)
-        if not can_add_wallet(user_id, len(wallets)) and len(wallets) >= 1:
-            await query.message.reply_text(get_upgrade_message(user_id, "max_wallets"))
+        max_wallets = get_max_wallets(user_id)
+        if len(wallets) >= max_wallets and max_wallets > 0:
+            await query.message.reply_text(get_upgrade_prompt(user_id, "max_wallets"))
             return
         
         if not wallets:
@@ -937,12 +978,12 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         coins = get_user_coins(user_id)
         wallets = get_wallets(user_id)
         user_lists = get_lists(user_id)
-        tier = get_user_tier(user_id)
+        plan = get_user_plan(user_id)
         
         msg = (
             f"📊 Dashboard\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Tier: {tier.title()}\n\n"
+            f"Plan: {plan.upper()}\n\n"
             f"📈 Tracking: {len(coins)} coins\n"
             f"👀 Wallets: {len(wallets)}\n"
             f"📂 Lists: {len(user_lists)}\n\n"
@@ -1000,8 +1041,14 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif choice in ["alert_loud", "alert_silent"]:
         # Set alert mode
         chat_id = query.message.chat_id
+        user_id = query.from_user.id
         
         if choice == "alert_loud":
+            # Check if user can use loud alerts (Pro feature)
+            if not can_use_loud_alerts(user_id):
+                await query.message.reply_text(get_upgrade_prompt(user_id, "loud_alerts"))
+                return
+            
             set_alert_mode(chat_id, "loud")
             msg = "🔊 Alert mode set to *LOUD*\n\nAlerts will play sound."
         else:
@@ -1039,8 +1086,9 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if choice == "action_track":
         # Check tier limits
         user_coins = get_user_coins(user_id)
-        if not can_add_coin(user_id, len(user_coins)):
-            await query.message.reply_text(get_upgrade_message(user_id, "max_coins"))
+        max_coins = get_max_coins(user_id)
+        if len(user_coins) >= max_coins:
+            await query.message.reply_text(get_upgrade_prompt(user_id, "max_coins"))
             return
         
         user_state[user_id] = {}
@@ -1050,10 +1098,8 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif choice == "action_wallets":
         # Check if user has wallet alert access
         if not can_use_wallet_alerts(user_id):
-            wallets_count = len(get_wallets(user_id))
-            if wallets_count >= 1:  # Free tier has 1 wallet
-                await query.message.reply_text(get_upgrade_message(user_id, "wallet_alerts"))
-                return
+            await query.message.reply_text(get_upgrade_prompt(user_id, "wallet_alerts"))
+            return
         
         wallets = get_wallets(user_id)
         
@@ -1227,7 +1273,7 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif choice == "alert_wallet":
         # Check if user has wallet alert access (Pro/Premium only)
         if not can_use_wallet_alerts(user_id):
-            await query.message.reply_text(get_upgrade_message(user_id, "wallet_alerts"))
+            await query.message.reply_text(get_upgrade_prompt(user_id, "wallet_alerts"))
             return
         
         # Initialize wallet alerts with defaults
@@ -1399,8 +1445,9 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif choice == "wallet_add":
         # Check tier limits
         wallets = get_wallets(user_id)
-        if not can_add_wallet(user_id, len(wallets)):
-            await query.message.reply_text(get_upgrade_message(user_id, "max_wallets"))
+        max_wallets = get_max_wallets(user_id)
+        if len(wallets) >= max_wallets:
+            await query.message.reply_text(get_upgrade_prompt(user_id, "max_wallets"))
             return
         
         user_state[user_id] = {"step": "wallet_address"}
@@ -1443,8 +1490,9 @@ async def alert_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif choice == "list_create":
         # Check tier limits
         user_lists = get_lists(user_id)
-        if not can_add_list(user_id, len(user_lists)):
-            await query.message.reply_text(get_upgrade_message(user_id, "max_lists"))
+        max_lists = get_max_lists(user_id)
+        if len(user_lists) >= max_lists:
+            await query.message.reply_text(get_upgrade_prompt(user_id, "max_lists"))
             return
         
         user_state[user_id] = {"step": "list_name"}
