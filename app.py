@@ -458,7 +458,38 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if choice == "setting_plans":
         await query.answer()
-        await query.message.reply_text("💳 Plans - Coming soon")
+        
+        # Show actual plan information
+        from plans import get_user_plan
+        user_plan = get_user_plan(query.from_user.id)
+        
+        text = (
+            "💳 Subscription Plans\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            f"🎯 Current Plan: {user_plan.upper()}\n\n"
+            "🆓 FREE\n"
+            "• 3 coins\n"
+            "• 1 wallet\n"
+            "• 1 list\n"
+            "• Basic alerts\n\n"
+            "🟡 BASIC ($10/mo)\n"
+            "• 10 coins\n"
+            "• 5 wallets\n"
+            "• 5 lists\n"
+            "• Loud alerts\n"
+            "• Priority support\n\n"
+            "🟠 PRO ($50/mo)\n"
+            "• Unlimited coins\n"
+            "• Unlimited wallets\n"
+            "• Unlimited lists\n"
+            "• Meta alerts\n"
+            "• Group support\n"
+            "• Premium features\n\n"
+            "💳 Contact @YourHandle to upgrade!"
+        )
+        
+        keyboard = [[InlineKeyboardButton("◀ Back", callback_data="menu_settings")]]
+        await query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
     if choice == "set_mode_loud":

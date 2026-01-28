@@ -150,6 +150,8 @@ def clear_user_history(user_id: int):
     history = load_history()
     user_id_str = str(user_id)
     
-    if user_id_str in history:
-        del history[user_id_str]
+    # Use pop to safely remove - won't error if key doesn't exist
+    if history.pop(user_id_str, None) is not None:
         save_history(history)
+        return True
+    return False

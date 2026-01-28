@@ -59,7 +59,9 @@ async def handle_home_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await show_lists_menu(update, context)
     
     elif choice == "menu_alerts":
-        await query.message.reply_text("🔔 Alerts menu - Coming soon")
+        # Redirect to dashboard which shows all alerts
+        from ui.dashboard import show_dashboard
+        await show_dashboard(update, context)
     
     elif choice == "menu_settings":
         from ui.settings import show_settings_menu

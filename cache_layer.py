@@ -4,7 +4,7 @@ from typing import Optional, Dict
 import time
 
 try:
-    import redis
+    import redis  # type: ignore
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
@@ -61,9 +61,9 @@ class CacheLayer:
             # Check TTL
             if key in self.cache_ttl:
                 if time.time() > self.cache_ttl[key]:
-                    # Expired
-                    del self.memory_cache[key]
-                    del self.cache_ttl[key]
+                    # Expired - use pop to safely remove
+                    self.memory_cache.pop(key, None)
+                    self.cache_ttl.pop(key, None)
                     return None
             
             return self.memory_cache[key]
@@ -102,11 +102,9 @@ class CacheLayer:
             except Exception as e:
                 print(f"Cache delete error: {e}")
         
-        # Also delete from memory cache
-        if key in self.memory_cache:
-            del self.memory_cache[key]
-        if key in self.cache_ttl:
-            del self.cache_ttl[key]
+        # Also delete from memory cache - use pop to avoid KeyError
+        self.memory_cache.pop(key, None)
+        self.cache_ttl.pop(key, None)
     
     def clear(self):
         """Clear entire cache."""
@@ -128,8 +126,8 @@ class CacheLayer:
         ]
         
         for key in expired_keys:
-            del self.memory_cache[key]
-            del self.cache_ttl[key]
+            self.memory_cache.pop(key, None)
+            self.cache_ttl.pop(key, None)
 
 
 # Global cache instance

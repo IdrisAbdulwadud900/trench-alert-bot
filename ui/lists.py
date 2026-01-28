@@ -139,15 +139,32 @@ async def show_list_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, l
 async def show_meta_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show meta alert configuration."""
     query = update.callback_query
+    user_id = query.from_user.id
     
-    text = (
-        "🔔 Meta Alerts\n\n"
-        "Set alerts based on list behavior:\n"
-        "• N+ coins pumping\n"
-        "• Total MC threshold\n"
-        "• Volume surge across list\n\n"
-        "Coming soon!"
-    )
+    from core.tracker import Tracker
+    user_lists = Tracker.get_user_lists(user_id)
+    
+    if not user_lists:
+        text = (
+            "🔔 Meta Alerts\n\n"
+            "Create lists first to set up meta alerts!\n\n"
+            "Meta alerts notify you when:\n"
+            "• N+ coins in a list are pumping\n"
+            "• List total MC hits threshold\n"
+            "• Volume surge across the list\n\n"
+            "💡 Create a list and add coins to get started!"
+        )
+    else:
+        text = (
+            "🔔 Meta Alerts\n\n"
+            f"You have {len(user_lists)} list(s) set up.\n\n"
+            "Meta alerts track list-wide behavior:\n"
+            "• When multiple coins pump together\n"
+            "• Total list market cap changes\n"
+            "• Coordinated volume activity\n\n"
+            "💡 Meta alerts are automatically enabled for all lists!\n"
+            "You'll be notified when narratives start moving."
+        )
     
     keyboard = [[InlineKeyboardButton("◀ Back", callback_data="menu_lists")]]
     
