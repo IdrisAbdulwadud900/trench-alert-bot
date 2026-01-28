@@ -52,7 +52,8 @@ def _find_balance(balances: list, wallet: str, mint: str) -> Optional[Tuple[floa
                 # amount is raw units; convert to tokens
                 tokens = amt / (10 ** dec) if dec else amt
                 return tokens, dec
-        except Exception:
+        except Exception as e:
+            # Malformed balance entry - skip and continue
             continue
     return None
 

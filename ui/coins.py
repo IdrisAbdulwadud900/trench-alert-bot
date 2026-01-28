@@ -106,7 +106,8 @@ async def show_coin_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Delete loading message
     try:
         await loading_msg.delete()
-    except:
+    except Exception as e:
+        # Message may have already been deleted - safe to ignore
         pass
     
     await query.message.reply_text(

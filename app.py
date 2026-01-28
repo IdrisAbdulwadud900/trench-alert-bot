@@ -628,7 +628,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Delete loading message
         try:
             await loading_msg.delete()
-        except:
+        except Exception as e:
+            # Message may have already been deleted - safe to ignore
             pass
         
         if not token or not token.get("mc"):
