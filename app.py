@@ -5,7 +5,7 @@ Main entry point - Minimal wiring only
 """
 
 import asyncio
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -88,7 +88,10 @@ async def handle_alert_config(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     user_id = query.from_user.id
     
-    state = context.bot_data.get("user_states", {}).get(user_id, {})
+    if "user_states" not in context.bot_data:
+        context.bot_data["user_states"] = {}
+    
+    state = context.bot_data["user_states"].get(user_id, {})
     
     if choice == "alert_config_mc":
         state["configuring"] = "mc"
@@ -269,7 +272,11 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if choice.startswith("clear_alerts_"):
         await query.answer()
-        coin_index = int(choice.split("_")[-1])
+        try:
+            coin_index = int(choice.split("_")[-1])
+        except (ValueError, IndexError):
+            await query.message.edit_text("⚠️ Invalid selection")
+            return
         
         from storage import load_data, save_data
         data = load_data()
