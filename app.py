@@ -505,7 +505,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_coin_search(update, context, text, user_id)
         
         # Clear state
-        del context.bot_data["user_states"][user_id]
+        context.bot_data["user_states"].pop(user_id, None)
         return
     
     # Edit alert flow
@@ -524,7 +524,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 value = float(text)
             else:
                 await update.message.reply_text("❌ Invalid alert type")
-                del context.bot_data["user_states"][user_id]
+                context.bot_data["user_states"].pop(user_id, None)
                 return
             
             # Update the alert
@@ -556,7 +556,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
             
             # Clear state
-            del context.bot_data["user_states"][user_id]
+            context.bot_data["user_states"].pop(user_id, None)
             return
         except ValueError:
             await update.message.reply_text(
@@ -567,6 +567,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "% Move: 50\n"
                 "X Multiple: 5"
             )
+            context.bot_data["user_states"].pop(user_id, None)
             return
     
     # Add coin flow - step 1: get CA
