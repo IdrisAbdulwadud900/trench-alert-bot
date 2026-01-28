@@ -74,13 +74,135 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /help command."""
+    """Handle /help command with comprehensive guide."""
     text = (
-        "ℹ️ Help\n\n"
-        "/start - Open home menu\n"
-        "/help - Show this help\n"
+        "📚 **Trench Alert Bot - Help Guide**\n\n"
+        "🎯 **Quick Start**\n"
+        "1. Tap /start to open the main menu\n"
+        "2. Choose ➕ Track Coin to add your first token\n"
+        "3. Configure alerts for market cap, price, or volume changes\n"
+        "4. Receive real-time notifications as markets move!\n\n"
+        
+        "📊 **Main Features**\n\n"
+        "🪙 **Track Coins**\n"
+        "• Add coins by contract address\n"
+        "• Monitor market cap, price, volume & liquidity\n"
+        "• Set custom alert thresholds\n"
+        "• Pause/resume tracking anytime\n\n"
+        
+        "👀 **Wallet Tracking**\n"
+        "• Track smart money wallets\n"
+        "• Get alerts when they buy specific coins\n"
+        "• Monitor whale movements in real-time\n\n"
+        
+        "📂 **Lists & Meta Alerts**\n"
+        "• Group coins by narrative (AI, DeFi, etc.)\n"
+        "• Detect when entire sectors are heating up\n"
+        "• Track rotation between narratives\n\n"
+        
+        "📈 **Dashboard**\n"
+        "• View all your tracked coins at a glance\n"
+        "• See performance metrics and multiples\n"
+        "• Identify top performers instantly\n\n"
+        
+        "⚙️ **Alert Types**\n"
+        "• Market Cap Targets (2x, 5x, 10x, custom)\n"
+        "• Percentage Moves (+20%, +50%, etc.)\n"
+        "• Volume Spikes & Liquidity Changes\n"
+        "• Time-based Alerts (hourly, daily gains)\n"
+        "• Combination Alerts (MC + Volume)\n\n"
+        
+        "💡 **Pro Tips**\n"
+        "• Use Aggressive mode for fast-moving tokens\n"
+        "• Use Conservative mode to reduce noise\n"
+        "• Create lists to organize by strategy\n"
+        "• Check Dashboard daily for portfolio overview\n\n"
+        
+        "🔧 **Commands**\n"
+        "/start - Main menu\n"
+        "/help - This guide\n"
+        "/about - About the bot\n\n"
+        
+        "❓ **Need Help?**\n"
+        "Tap /start and explore each section!\n"
+        "The bot guides you step-by-step. 🚀"
     )
-    await update.message.reply_text(text)
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /about command with bot information."""
+    text = (
+        "🤖 **Trench Alert Bot**\n\n"
+        
+        "**What is Trench Alert Bot?**\n"
+        "Trench Alert Bot is your 24/7 cryptocurrency market intelligence assistant. "
+        "Built for Solana traders who need instant notifications when market conditions change, "
+        "without constantly checking charts.\n\n"
+        
+        "**Why Use This Bot?**\n\n"
+        "⏰ **Never Miss a Move**\n"
+        "• Real-time alerts delivered instantly to Telegram\n"
+        "• Monitor unlimited coins simultaneously\n"
+        "• Track while you sleep, work, or travel\n\n"
+        
+        "🎯 **Smart, Not Noisy**\n"
+        "• Customizable alert thresholds\n"
+        "• Intelligent filtering reduces spam\n"
+        "• Only get notified when it matters\n\n"
+        
+        "📊 **Professional Tools**\n"
+        "• Wallet tracking for smart money following\n"
+        "• Narrative/sector rotation detection\n"
+        "• Performance analytics & dashboards\n"
+        "• Multi-condition alert combinations\n\n"
+        
+        "**Perfect For:**\n"
+        "✅ Day traders who need instant price alerts\n"
+        "✅ Long-term holders tracking portfolio growth\n"
+        "✅ Researchers monitoring narrative trends\n"
+        "✅ Anyone tired of missing opportunities\n\n"
+        
+        "**How It Works:**\n"
+        "1. You add tokens by contract address\n"
+        "2. Set your alert preferences\n"
+        "3. Bot monitors markets every 30 seconds\n"
+        "4. Get instant Telegram notifications\n"
+        "5. Make informed decisions faster\n\n"
+        
+        "**Data Sources:**\n"
+        "• DexScreener API for pricing & liquidity\n"
+        "• Solana RPC for on-chain wallet tracking\n"
+        "• All data refreshed in real-time\n\n"
+        
+        "**Free Features:**\n"
+        "• Unlimited coin tracking\n"
+        "• Basic alert types (MC, %, Volume)\n"
+        "• Dashboard & history\n"
+        "• Conservative/Aggressive modes\n\n"
+        
+        "**Pro Features:** *(Upgrade available)*\n"
+        "• Wallet tracking & whale alerts\n"
+        "• Meta/narrative alerts\n"
+        "• Time-based & combination alerts\n"
+        "• Priority support\n\n"
+        
+        "**Privacy & Security:**\n"
+        "• No wallet connections required\n"
+        "• No trading permissions needed\n"
+        "• Only reads public blockchain data\n"
+        "• Your data stays private\n\n"
+        
+        "**Open Source & Transparent:**\n"
+        "Built with Python, Telegram Bot API, and modern architecture. "
+        "Reliable, tested, and actively maintained.\n\n"
+        
+        "Ready to never miss another opportunity?\n"
+        "Tap /start to begin tracking! 🚀\n\n"
+        
+        "Questions? Use /help for detailed guide."
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 
 async def handle_alert_config(update: Update, context: ContextTypes.DEFAULT_TYPE, choice: str):
@@ -806,7 +928,8 @@ def main():
         
         await application.bot.set_my_commands([
             ("start", "Open home menu"),
-            ("help", "Show help")
+            ("help", "Show help guide"),
+            ("about", "About this bot")
         ])
         print("✅ Commands registered")
         
@@ -819,6 +942,7 @@ def main():
     # Register handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("about", about_command))
     app.add_handler(CallbackQueryHandler(callback_router))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
