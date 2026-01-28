@@ -18,6 +18,7 @@ Returns alert dict ONLY when ALL conditions met:
 """
 
 import time
+import requests
 from typing import Dict, Optional
 from wallet_scanner import get_recent_signatures
 from wallet_parser import get_transaction, parse_token_inflow
@@ -97,8 +98,16 @@ def detect_wallet_buys(wallet: str, coin: Dict, min_usd: float = 300) -> Optiona
         
         return None
         
+    except requests.exceptions.HTTPError as e:
+        # Don't spam logs for rate limiting - it's expected on free tier
+        if '429' in str(e):
+            return None  # Silently skip on rate limit
+        print(f"HTTP error for wallet {wallet[:8]}...: {e}")
+        return None
     except Exception as e:
-        print(f"Error detecting buy for wallet {wallet[:8]}...: {e}")
+        # Only log unexpected errors
+        if 'Too Many Requests' not in str(e):
+            print(f"Error detecting buy for wallet {wallet[:8]}...: {e}")
         return None
 
 

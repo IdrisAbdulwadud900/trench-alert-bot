@@ -15,15 +15,22 @@ Env:
 
 import os
 import requests
+import time
 from typing import List, Dict, Any
 
 RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 
-def get_recent_signatures(wallet: str, limit: int = 5) -> List[Dict[str, Any]]:
+# Rate limiting
+LAST_REQUEST_TIME = 0
+MIN_REQUEST_INTERVAL = 0.5  # 500ms between requests
+
+def get_recent_signatures(wallet: str, limit: int = 5, max_retries: int = 3) -> List[Dict[str, Any]]:
     """Return a list of recent signatures for the given wallet.
     Each item contains keys like 'signature', 'slot', 'blockTime'.
-    Raises on HTTP or RPC error.
+    Includes retry logic for rate limiting.
     """
+    global LAST_REQUEST_TIME
+    
     if not wallet or not isinstance(wallet, str):
         raise ValueError("wallet address is required")
     if limit <= 0:
@@ -38,20 +45,54 @@ def get_recent_signatures(wallet: str, limit: int = 5) -> List[Dict[str, Any]]:
             {"limit": limit}
         ]
     }
+    
+    for attempt in range(max_retries):
+        try:
+            # Rate limiting - ensure minimum interval between requests
+            now = time.time()
+            time_since_last = now - LAST_REQUEST_TIME
+            if time_since_last < MIN_REQUEST_INTERVAL:
+                time.sleep(MIN_REQUEST_INTERVAL - time_since_last)
+            
+            LAST_REQUEST_TIME = time.time()
+            
+            resp = requests.post(RPC_URL, json=payload, timeout=10)
+            
+            # Handle rate limiting with exponential backoff
+            if resp.status_code == 429:
+                if attempt < max_retries - 1:
+                    backoff = (2 ** attempt) * 2  # 2s, 4s, 8s
+                    print(f"⚠️ Rate limited, retrying in {backoff}s...")
+                    time.sleep(backoff)
+                    continue
+                else:
+                    print(f"❌ Rate limit exceeded after {max_retries} retries")
+                    return []  # Return empty instead of crashing
+            
+            resp.raise_for_status()
+            data = resp.json()
 
-    resp = requests.post(RPC_URL, json=payload, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
+            if "error" in data:
+                err = data["error"]
+                print(f"RPC error for wallet {wallet[:8]}...: {err}")
+                return []  # Return empty on RPC errors
 
-    if "error" in data:
-        # Raise a readable error for upstream handling
-        err = data["error"]
-        raise RuntimeError(f"RPC error: {err}")
-
-    result = data.get("result", [])
-    if not isinstance(result, list):
-        return []
-    return result
+            result = data.get("result", [])
+            if not isinstance(result, list):
+                return []
+            return result
+            
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:
+                backoff = (2 ** attempt) * 1  # 1s, 2s, 4s
+                print(f"⚠️ Request failed, retrying in {backoff}s...")
+                time.sleep(backoff)
+                continue
+            else:
+                print(f"❌ Request failed after {max_retries} retries: {e}")
+                return []  # Return empty instead of crashing
+    
+    return []
 
 if __name__ == "__main__":
     import sys
