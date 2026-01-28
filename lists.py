@@ -102,8 +102,16 @@ def add_coin_to_list(user_id, list_name, ca):
     if uid not in data or list_name not in data[uid]:
         return False  # List doesn't exist
 
-    if ca not in data[uid][list_name]:
-        data[uid][list_name].append(ca)
+    # Support both old format (list) and new format (dict with "coins")
+    list_data = data[uid][list_name]
+    if isinstance(list_data, dict):
+        # New format
+        if ca not in list_data.get("coins", []):
+            list_data.setdefault("coins", []).append(ca)
+    else:
+        # Old format (list)
+        if ca not in list_data:
+            data[uid][list_name].append(ca)
 
     save_lists(data)
     return True
@@ -119,8 +127,16 @@ def remove_coin_from_list(user_id, list_name, ca):
     uid = str(user_id)
 
     if uid in data and list_name in data[uid]:
-        if ca in data[uid][list_name]:
-            data[uid][list_name].remove(ca)
+        list_data = data[uid][list_name]
+        # Support both old format (list) and new format (dict with "coins")
+        if isinstance(list_data, dict):
+            # New format
+            if ca in list_data.get("coins", []):
+                list_data["coins"].remove(ca)
+        else:
+            # Old format (list)
+            if ca in list_data:
+                data[uid][list_name].remove(ca)
         save_lists(data)
         return True
 
@@ -141,6 +157,6 @@ def delete_list(user_id, list_index):
         return False
     
     list_name = list_names[list_index]
-    del data[uid][list_name]
+    data[uid].pop(list_name, None)  # Safe deletion - prevents KeyError
     save_lists(data)
     return True

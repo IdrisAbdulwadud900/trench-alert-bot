@@ -36,8 +36,8 @@ for f in files:
             with open(f) as fp:
                 json.load(fp)
             print(f'   ✅ {f}')
-        except:
-            print(f'   ❌ {f} - corrupted')
+        except Exception as e:
+            print(f'   ❌ {f} - corrupted: {e}')
             errors.append(f'{f} corrupted')
     else:
         print(f'   ⚠️  {f} - will be created')

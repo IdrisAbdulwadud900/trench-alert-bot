@@ -213,7 +213,7 @@ def delete_group(group_id):
     group_id = str(group_id)
     
     if group_id in data:
-        del data[group_id]
+        data.pop(group_id, None)  # Safe deletion - prevents KeyError
         save_groups(data)
         return True
     

@@ -65,7 +65,7 @@ async def show_coin_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         token = get_market_cap(ca)
         
         if token and token.get("mc"):
-            current_mc = token["mc"]
+            current_mc = token.get("mc", 0)  # Safe access
             multiple = current_mc / start_mc if start_mc > 0 else 1
             change_pct = ((current_mc - start_mc) / start_mc * 100) if start_mc > 0 else 0
             

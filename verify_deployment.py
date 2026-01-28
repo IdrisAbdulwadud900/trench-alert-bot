@@ -33,8 +33,8 @@ print("\n📁 Checking data files...")
 try:
     from subscriptions import SUBS_FILE
     print(f"   ✅ Subscriptions file path: {SUBS_FILE}")
-except:
-    print("   ❌ Could not get subscriptions file path")
+except Exception as e:
+    print(f"   ❌ Could not get subscriptions file path: {e}")
     sys.exit(1)
 
 # 3. Test pricing message
