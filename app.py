@@ -53,11 +53,6 @@ from core.monitor import start_monitor
 from webhook_config import should_use_webhook, get_webhook_config, setup_webhook
 
 
-# Validate BOT_TOKEN
-if not BOT_TOKEN:
-    raise ValueError("❌ BOT_TOKEN is not set!")
-
-
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     # Detect if this is a group
@@ -918,6 +913,9 @@ def main():
     """Main entry point."""
     print("🚀 Trench Alert Bot - Clean Architecture")
     print("=" * 50)
+
+    if not BOT_TOKEN:
+        raise ValueError("❌ BOT_TOKEN is not set! Set BOT_TOKEN in your environment or .env/config before running the bot.")
     
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     

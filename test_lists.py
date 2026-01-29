@@ -46,8 +46,8 @@ def test_lists():
     success = add_coin_to_list(user_id, "AI", test_ca_1)
     assert success, "Failed to add coin to list"
     lists = get_lists(user_id)
-    assert test_ca_1 in lists["AI"], f"Expected CA in list"
-    assert len(lists["AI"]) == 1, f"Expected 1 coin, got {len(lists['AI'])}"
+    assert test_ca_1 in lists["AI"]["coins"], f"Expected CA in list"
+    assert len(lists["AI"]["coins"]) == 1, f"Expected 1 coin, got {len(lists['AI']['coins'])}"
     print("   ✓ Coin added successfully\n")
     
     # Test 4: Add second coin
@@ -55,7 +55,7 @@ def test_lists():
     success = add_coin_to_list(user_id, "AI", test_ca_2)
     assert success, "Failed to add second coin"
     lists = get_lists(user_id)
-    assert len(lists["AI"]) == 2, f"Expected 2 coins, got {len(lists['AI'])}"
+    assert len(lists["AI"]["coins"]) == 2, f"Expected 2 coins, got {len(lists['AI']['coins'])}"
     print("   ✓ Second coin added successfully\n")
     
     # Test 5: Prevent duplicate coins in list
@@ -63,7 +63,7 @@ def test_lists():
     success = add_coin_to_list(user_id, "AI", test_ca_1)
     assert success, "Should add coin even if exists (idempotent)"
     lists = get_lists(user_id)
-    assert len(lists["AI"]) == 2, f"Expected 2 coins (no duplicates), got {len(lists['AI'])}"
+    assert len(lists["AI"]["coins"]) == 2, f"Expected 2 coins (no duplicates), got {len(lists['AI']['coins'])}"
     print("   ✓ Duplicate coins prevented\n")
     
     # Test 6: Create multiple lists
@@ -79,9 +79,9 @@ def test_lists():
     add_coin_to_list(user_id, "Gaming", test_ca_1)
     add_coin_to_list(user_id, "DeFi", test_ca_2)
     lists = get_lists(user_id)
-    assert len(lists["AI"]) == 2, "AI list should have 2 coins"
-    assert len(lists["Gaming"]) == 1, "Gaming list should have 1 coin"
-    assert len(lists["DeFi"]) == 1, "DeFi list should have 1 coin"
+    assert len(lists["AI"]["coins"]) == 2, "AI list should have 2 coins"
+    assert len(lists["Gaming"]["coins"]) == 1, "Gaming list should have 1 coin"
+    assert len(lists["DeFi"]["coins"]) == 1, "DeFi list should have 1 coin"
     print("   ✓ Coins added to different lists correctly\n")
     
     # Test 8: Remove coin from list
@@ -89,9 +89,9 @@ def test_lists():
     success = remove_coin_from_list(user_id, "AI", test_ca_1)
     assert success, "Failed to remove coin"
     lists = get_lists(user_id)
-    assert len(lists["AI"]) == 1, f"Expected 1 coin after removal, got {len(lists['AI'])}"
-    assert test_ca_1 not in lists["AI"], "Coin should be removed"
-    assert test_ca_2 in lists["AI"], "Other coin should remain"
+    assert len(lists["AI"]["coins"]) == 1, f"Expected 1 coin after removal, got {len(lists['AI']['coins'])}"
+    assert test_ca_1 not in lists["AI"]["coins"], "Coin should be removed"
+    assert test_ca_2 in lists["AI"]["coins"], "Other coin should remain"
     print("   ✓ Coin removed successfully\n")
     
     # Test 9: Delete list
@@ -114,8 +114,8 @@ def test_lists():
     
     assert "AI" in lists_user1, "User 1 should have AI list"
     assert "AI" in lists_user2, "User 2 should have AI list"
-    assert len(lists_user1["AI"]) == 1, "User 1 AI list has 1 coin"
-    assert len(lists_user2["AI"]) == 1, "User 2 AI list has 1 coin"
+    assert len(lists_user1["AI"]["coins"]) == 1, "User 1 AI list has 1 coin"
+    assert len(lists_user2["AI"]["coins"]) == 1, "User 2 AI list has 1 coin"
     print("   ✓ Multiple users maintain separate lists\n")
     
     print("=" * 50)

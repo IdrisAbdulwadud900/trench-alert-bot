@@ -143,19 +143,33 @@ def remove_coin_from_list(user_id, list_name, ca):
     return False
 
 def delete_list(user_id, list_index):
-    """Delete a list by index."""
+    """Delete a list by index (int) or by name (str)."""
     data = load_lists()
     uid = str(user_id)
 
     if uid not in data:
         return False
     
-    # Convert to list to get by index
+    # Allow deleting by name (newer tests / direct calls)
+    if isinstance(list_index, str):
+        # If it looks like an index, treat it as an index for backwards compat
+        if list_index.isdigit():
+            list_index = int(list_index)
+        else:
+            if list_index not in data[uid]:
+                return False
+            data[uid].pop(list_index, None)
+            save_lists(data)
+            return True
+
+    # Delete by numeric index
+    if not isinstance(list_index, int) or list_index < 0:
+        return False
+
     list_names = list(data[uid].keys())
-    
     if list_index >= len(list_names):
         return False
-    
+
     list_name = list_names[list_index]
     data[uid].pop(list_name, None)  # Safe deletion - prevents KeyError
     save_lists(data)

@@ -4,6 +4,9 @@ Final UX Polish Validation
 Tests all improved flows
 """
 
+
+import sys
+
 print("=" * 70)
 print("FINAL UX POLISH VALIDATION")
 print("=" * 70)
@@ -203,10 +206,19 @@ else:
 print("\n" + "=" * 70)
 if len(successes) >= 8 and len(issues) == 0:
     print("\u2705 UX POLISH: EXCELLENT - Ready to deploy!")
-    exit(0)
+    exit_code = 0
 elif len(successes) >= 6:
     print("\u2705 UX POLISH: GOOD - Minor issues to address")
-    exit(0)
+    exit_code = 0
 else:
     print("\u26a0\ufe0f UX POLISH: Needs more work")
-    exit(1)
+    exit_code = 1
+
+
+def test_ux_polish_meets_minimum_quality_bar():
+    # Match the script's definition of "good enough".
+    assert exit_code == 0, f"UX polish below bar: successes={len(successes)}/10 issues={issues}"
+
+
+if __name__ == "__main__":
+    sys.exit(exit_code)

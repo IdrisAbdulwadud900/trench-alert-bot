@@ -1,9 +1,30 @@
 {
   "12345": {
-    "AI": [
-      "ca1",
-      "ca2"
-    ]
+    "AI": {
+      "coins": [
+        "So11111111111111111111111111111111111111112"
+      ],
+      "description": "",
+      "meta_alerts": {},
+      "meta_triggered": {}
+    },
+    "DeFi": {
+      "coins": [
+        "So11111111111111111111111111111111111111112"
+      ],
+      "description": "",
+      "meta_alerts": {},
+      "meta_triggered": {}
+    }
   },
-  "verification_user": {}
+  "54321": {
+    "AI": {
+      "coins": [
+        "EPjFWaLb3odcccccccccccccccccccccccccccccccc"
+      ],
+      "description": "",
+      "meta_alerts": {},
+      "meta_triggered": {}
+    }
+  }
 }

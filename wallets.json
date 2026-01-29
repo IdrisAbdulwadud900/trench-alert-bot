@@ -1,9 +1,14 @@
 {
   "12345": [
     {
-      "address": "abc123",
-      "label": "Test"
+      "address": "4xY7QpRs9TuV1WxYzAbCdEfGhIjKlMnOpQrStUvWx",
+      "label": "Dev Team"
     }
   ],
-  "test_999": []
+  "54321": [
+    {
+      "address": "9B5XlmKz2mP8jK4L9nOpQrStUvWxYzAbCdEfGhIjKl",
+      "label": "User 2 Wallet"
+    }
+  ]
 }

@@ -315,32 +315,42 @@ except Exception as e:
     issues.append(f"Icon consistency check failed: {e}")
     print(f"   ✗ {e}")
 
-# Summary
-print("\n" + "=" * 70)
-print("SUMMARY")
-print("=" * 70)
+def _print_summary_and_get_exit_code(issues, improvements) -> int:
+    # Summary
+    print("\n" + "=" * 70)
+    print("SUMMARY")
+    print("=" * 70)
 
-if not issues:
-    print("\n✅ NO CRITICAL ISSUES FOUND")
-else:
-    print(f"\n❌ {len(issues)} CRITICAL ISSUES:")
-    for issue in issues:
-        print(f"   • {issue}")
+    if not issues:
+        print("\n✅ NO CRITICAL ISSUES FOUND")
+    else:
+        print(f"\n❌ {len(issues)} CRITICAL ISSUES:")
+        for issue in issues:
+            print(f"   • {issue}")
 
-if improvements:
-    print(f"\n💡 {len(improvements)} IMPROVEMENT OPPORTUNITIES:")
-    for improvement in improvements[:10]:  # Show top 10
-        print(f"   • {improvement}")
-else:
-    print("\n🎉 UX IS EXCELLENT - NO IMPROVEMENTS NEEDED!")
+    if improvements:
+        print(f"\n💡 {len(improvements)} IMPROVEMENT OPPORTUNITIES:")
+        for improvement in improvements[:10]:
+            print(f"   • {improvement}")
+    else:
+        print("\n🎉 UX IS EXCELLENT - NO IMPROVEMENTS NEEDED!")
 
-print("\n" + "=" * 70)
-if not issues and len(improvements) < 5:
-    print("✅ UX QUALITY: EXCELLENT")
-    sys.exit(0)
-elif not issues:
-    print("✅ UX QUALITY: GOOD (Minor improvements suggested)")
-    sys.exit(0)
-else:
+    print("\n" + "=" * 70)
+    if not issues and len(improvements) < 5:
+        print("✅ UX QUALITY: EXCELLENT")
+        return 0
+    if not issues:
+        print("✅ UX QUALITY: GOOD (Minor improvements suggested)")
+        return 0
+
     print("⚠️ UX QUALITY: NEEDS ATTENTION")
-    sys.exit(1)
+    return 1
+
+
+def test_ux_flows_have_no_critical_issues():
+    """Pytest entrypoint: only fail on critical UX issues."""
+    assert not issues, f"Critical UX issues found: {issues}"
+
+
+if __name__ == "__main__":
+    sys.exit(_print_summary_and_get_exit_code(issues, improvements))
