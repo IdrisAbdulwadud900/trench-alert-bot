@@ -4,8 +4,10 @@ Integration test for Trench Alert Bot
 Tests all core flows without running the actual bot
 """
 
-import sys
 import json
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
 
 def test_imports():
     """Test all imports work."""
@@ -26,10 +28,8 @@ def test_imports():
         import mc
         import intelligence
         print("✅ All imports successful")
-        return True
     except Exception as e:
-        print(f"❌ Import failed: {e}")
-        return False
+        raise AssertionError(f"Import failed: {e}") from e
 
 
 def test_tracker():
@@ -65,13 +65,11 @@ def test_tracker():
             print("  ✅ Remove coin works")
         else:
             print("  ⚠️ Remove coin didn't find coin to remove")
-        
-        return True
     except Exception as e:
         print(f"  ❌ Tracker test failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_alerts():
@@ -118,13 +116,11 @@ def test_alerts():
         # Test evaluate_all
         alerts = AlertEngine.evaluate_all(test_coin, 150000, 10000, "aggressive")
         print(f"  ✅ evaluate_all returns {len(alerts)} alerts")
-        
-        return True
     except Exception as e:
         print(f"  ❌ AlertEngine test failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_data_files():
@@ -132,13 +128,13 @@ def test_data_files():
     print("\nTesting data files...")
     try:
         # Test data.json
-        with open("data.json", "r") as f:
+        with open(BASE_DIR / "data.json", "r", encoding="utf-8") as f:
             data = json.load(f)
             print(f"  ✅ data.json is valid JSON ({len(data)} users)")
         
         # Test settings.json if exists
         try:
-            with open("settings.json", "r") as f:
+            with open(BASE_DIR / "settings.json", "r", encoding="utf-8") as f:
                 settings = json.load(f)
                 print(f"  ✅ settings.json is valid JSON ({len(settings)} chats)")
         except FileNotFoundError:
@@ -146,16 +142,13 @@ def test_data_files():
         
         # Test wallets.json if exists
         try:
-            with open("wallets.json", "r") as f:
+            with open(BASE_DIR / "wallets.json", "r", encoding="utf-8") as f:
                 wallets = json.load(f)
                 print(f"  ✅ wallets.json is valid JSON ({len(wallets)} users)")
         except FileNotFoundError:
             print("  ℹ️ wallets.json doesn't exist yet (ok)")
-        
-        return True
     except Exception as e:
-        print(f"  ❌ Data file test failed: {e}")
-        return False
+        raise AssertionError(f"Data file test failed: {e}") from e
 
 
 def test_intelligence():
@@ -182,13 +175,11 @@ def test_intelligence():
         # Test range description
         desc = get_range_description(0.5)
         print(f"  ✅ Range description: {desc}")
-        
-        return True
     except Exception as e:
         print(f"  ❌ Intelligence test failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def main():
@@ -207,13 +198,17 @@ def main():
     
     results = []
     for test in tests:
-        results.append(test())
+        try:
+            test()
+            results.append(True)
+        except Exception:
+            results.append(False)
     
     print("\n" + "=" * 60)
     print("TEST RESULTS")
     print("=" * 60)
     
-    passed = sum(results)
+    passed = sum(1 for ok in results if ok)
     total = len(results)
     
     print(f"Passed: {passed}/{total}")

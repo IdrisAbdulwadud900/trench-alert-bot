@@ -6,6 +6,9 @@ Tests all improved flows
 
 
 import sys
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
 
 print("=" * 70)
 print("FINAL UX POLISH VALIDATION")
@@ -29,7 +32,7 @@ except ImportError as e:
 # Test 2: Check for loading states
 print("\n\u2705 Test 2: Loading States Added")
 try:
-    with open('ui/coins.py', 'r') as f:
+    with open(BASE_DIR / 'ui' / 'coins.py', 'r', encoding='utf-8') as f:
         content = f.read()
         if '\u23f3' in content and 'loading_msg' in content:
             print("   \u2713 Loading states implemented in coins.py")
@@ -46,7 +49,7 @@ try:
     improvements_found = 0
     
     for filepath in ['ui/coins.py', 'ui/wallets.py', 'ui/lists.py', 'ui/dashboard.py']:
-        with open(filepath, 'r') as f:
+        with open(BASE_DIR / filepath, 'r', encoding='utf-8') as f:
             content = f.read()
             files_checked += 1
             if '\ud83d\udca1' in content and 'Add Your First' in content:
@@ -63,7 +66,7 @@ except Exception as e:
 # Test 4: Check for better error messages
 print("\n\u2705 Test 4: Improved Error Messages")
 try:
-    with open('app.py', 'r') as f:
+    with open(BASE_DIR / 'app.py', 'r', encoding='utf-8') as f:
         content = f.read()
         error_improvements = 0
         
@@ -85,7 +88,7 @@ except Exception as e:
 # Test 5: Check for success confirmations
 print("\n\u2705 Test 5: Success Confirmations with Next Steps")
 try:
-    with open('app.py', 'r') as f:
+    with open(BASE_DIR / 'app.py', 'r', encoding='utf-8') as f:
         content = f.read()
         confirmations = 0
         
@@ -105,7 +108,7 @@ except Exception as e:
 # Test 6: Check for enhanced alert formatting
 print("\n\u2705 Test 6: Enhanced Alert Formatting")
 try:
-    with open('core/monitor.py', 'r') as f:
+    with open(BASE_DIR / 'core' / 'monitor.py', 'r', encoding='utf-8') as f:
         content = f.read()
         if 'parse_mode=\"HTML\"' in content and 'timestamp' in content:
             print("   \u2713 Alerts now include timestamps and HTML formatting")
@@ -120,7 +123,7 @@ print("\n\u2705 Test 7: Inline Keyboards with CTAs")
 try:
     keyboard_count = 0
     for filepath in ['ui/coins.py', 'ui/wallets.py', 'ui/lists.py', 'app.py']:
-        with open(filepath, 'r') as f:
+        with open(BASE_DIR / filepath, 'r', encoding='utf-8') as f:
             content = f.read()
             keyboard_count += content.count('InlineKeyboardMarkup(keyboard)')
     
@@ -137,7 +140,7 @@ print("\n\u2705 Test 8: Helpful Tips and Hints")
 try:
     tip_count = 0
     for filepath in ['ui/coins.py', 'ui/wallets.py', 'app.py']:
-        with open(filepath, 'r') as f:
+        with open(BASE_DIR / filepath, 'r', encoding='utf-8') as f:
             content = f.read()
             tip_count += content.count('\ud83d\udca1')
     
@@ -156,7 +159,7 @@ try:
     home_buttons = 0
     
     import os
-    for root, dirs, files in os.walk('ui'):
+    for root, dirs, files in os.walk(BASE_DIR / 'ui'):
         for file in files:
             if file.endswith('.py'):
                 with open(os.path.join(root, file), 'r') as f:
@@ -176,7 +179,7 @@ except Exception as e:
 print("\n\u2705 Test 10: Code Quality")
 try:
     import subprocess
-    result = subprocess.run(['python3', '-m', 'py_compile', 'app.py'], 
+    result = subprocess.run([sys.executable, '-m', 'py_compile', str(BASE_DIR / 'app.py')],
                           capture_output=True, text=True)
     if result.returncode == 0:
         print("   \u2713 app.py compiles without syntax errors")
